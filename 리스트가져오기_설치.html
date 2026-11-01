@@ -1,0 +1,109 @@
+<!doctype html>
+<html lang="ko">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1, viewport-fit=cover">
+<title>리스트 가져오기 설치</title>
+<style>
+  :root{
+    --bg:#FFFFFF; --surface:#F6F9F7; --line:#6E8177; --line-soft:#C2CDC6;
+    --text:#0D1512; --muted:#41544A; --ok:#116B36; --ochre:#8A5300; --ochre-soft:#FBEBCB;
+    --mono: ui-monospace,"SF Mono",Menlo,Consolas,monospace;
+    --sans:"Pretendard",-apple-system,"Apple SD Gothic Neo","Malgun Gothic","Noto Sans KR",sans-serif;
+    color-scheme: light;
+  }
+  @media (prefers-color-scheme: dark){ :root:not([data-theme="light"]){
+    --bg:#0E1A15; --surface:#16251E; --line:#5C8571; --line-soft:#456B58;
+    --text:#F0F5F1; --muted:#A9BEB2; --ok:#6FCE93; --ochre:#E9B558; --ochre-soft:#3B3120;
+    color-scheme: dark;
+  }}
+  *{box-sizing:border-box}
+  body{margin:0;background:var(--bg);color:var(--text);font-family:var(--sans);font-size:16px;line-height:1.6}
+  .wrap{max-width:760px;margin:0 auto;padding-block:28px 72px;
+        padding-left:max(16px,env(safe-area-inset-left,0px));padding-right:max(16px,env(safe-area-inset-right,0px))}
+  h1{font-size:25px;margin:0 0 6px;letter-spacing:-.02em}
+  .lead{color:var(--muted);margin:0 0 24px}
+  h2{font-size:18px;margin:30px 0 8px;padding-bottom:6px;border-bottom:2px solid var(--line)}
+  p{margin:8px 0}
+  ol{margin:8px 0 8px 20px;padding:0} li{margin:6px 0}
+  code{font-family:var(--mono);font-size:.92em;background:var(--surface);padding:1px 5px;border-radius:4px;border:1px solid var(--line-soft)}
+  label{display:block;font-weight:700;font-size:14px;margin-bottom:6px}
+  input[type=text]{width:100%;background:var(--bg);color:var(--text);border:2px solid var(--line);
+    border-radius:8px;padding:11px 13px;font-family:var(--mono);font-size:15px}
+  .out{margin-top:18px;padding:18px;border:2px dashed var(--line);border-radius:12px;background:var(--surface);text-align:center}
+  .bm{display:inline-block;background:var(--ok);color:#fff;font-weight:700;font-size:17px;
+      padding:13px 24px;border-radius:10px;text-decoration:none;cursor:grab}
+  .bm:active{cursor:grabbing}
+  .hint{color:var(--muted);font-size:13.5px;margin-top:10px}
+  .note{border:1px solid var(--ochre);background:var(--ochre-soft);border-radius:10px;padding:13px 15px;margin:16px 0;font-size:14.5px}
+  .off{opacity:.45;pointer-events:none}
+</style>
+</head>
+<body>
+<div class="wrap">
+
+<h1>리스트 가져오기 설치</h1>
+<p class="lead">회사 시스템에서 출고·반품 리스트를 버튼 한 번으로 검수 프로그램에 넘기는 도구입니다. PC 크롬·엣지에 한 번만 설치하면 됩니다.</p>
+
+<h2>1 · 검수 프로그램 주소</h2>
+<label for="app">검수 프로그램 주소</label>
+<input type="text" id="app" placeholder="https://아이디.github.io/저장소이름/" autocomplete="off">
+<p class="hint" id="apphint">이 페이지와 같은 곳에 있는 검수 프로그램 주소가 자동으로 들어갑니다. 그대로 두고 아래 초록 버튼으로 내려가세요.</p>
+
+<div class="out off" id="out">
+  <a class="bm" id="bm" href="#">리스트 가져오기</a>
+  <div class="hint">이 초록 버튼을 <b>북마크바로 끌어다 놓으세요</b>. 북마크바가 안 보이면 <code>Ctrl+Shift+B</code>를 누르면 나옵니다.</div>
+</div>
+
+<h2>2 · 쓰는 방법</h2>
+<ol>
+  <li>회사 시스템에서 <b>상품입고관리</b>(또는 <b>매장반품관리</b>)를 엽니다</li>
+  <li>전표번호나 반품코드로 <b>검색</b>해서 리스트를 화면에 띄웁니다</li>
+  <li>북마크바의 <b>리스트 가져오기</b>를 누릅니다</li>
+  <li>검수 프로그램이 새 창으로 열리면서 <b>매장·전표번호·리스트</b>가 이미 들어가 있습니다. <b>검수 시작</b>만 누르면 됩니다</li>
+</ol>
+
+<div class="note">
+  <b>반품은 반품코드를 눌러 상세 리스트가 나온 화면에서</b> 눌러야 합니다. 반품코드 목록 화면에서는 제품 리스트가 없어 가져올 것이 없습니다.
+</div>
+
+<h2>잘 안 될 때</h2>
+<ol>
+  <li><b>"표를 찾지 못했습니다"</b> — 리스트를 먼저 조회했는지 확인하세요. 조회 전에는 가져올 내용이 없습니다.</li>
+  <li><b>새 창이 안 열림</b> — 주소창 오른쪽에 팝업 차단 표시가 뜹니다. 허용해 주세요. 그 사이에도 리스트는 복사되어 있으니 붙여넣기 하셔도 됩니다.</li>
+  <li><b>수량이 다르게 들어옴</b> — 회사 시스템 화면의 열 이름이 바뀐 경우입니다. 화면을 캡처해 알려 주시면 맞춰 드리겠습니다.</li>
+</ol>
+
+<script>
+var SRC = "(function () {\n  var APP = \"__APP_URL__\";\n  function txt(el) {\n    return (el ? el.textContent : \"\").replace(/ /g, \" \").replace(/\\s+/g, \" \").trim();\n  }\n  function allTables() {\n    var out = [], docs = [document];\n    var ifr = document.getElementsByTagName(\"iframe\");\n    for (var i = 0; i < ifr.length; i++) {\n      try { if (ifr[i].contentDocument) docs.push(ifr[i].contentDocument); } catch (e) {}\n    }\n    for (var d = 0; d < docs.length; d++) {\n      var t = docs[d].getElementsByTagName(\"table\");\n      for (var j = 0; j < t.length; j++) out.push(t[j]);\n    }\n    return out;\n  }\n  var HEAD = {\n    bc:  /^(바코드|barcode|bar\\s*code)$/i,\n    qty: /^(수량|요청수량|출고수량|반품수량|처리수량|qty)$/i,\n    nm:  /^(상품명|제품명|품명)$/i\n  };\n  function findCols(table) {\n    var rows = table.rows, best = null;\n    for (var r = 0; r < Math.min(rows.length, 12); r++) {\n      var cells = rows[r].cells, got = { bc: -1, qty: -1, nm: -1, row: r };\n      for (var c = 0; c < cells.length; c++) {\n        var v = txt(cells[c]);\n        if (got.bc < 0 && HEAD.bc.test(v)) got.bc = c;\n        else if (got.qty < 0 && HEAD.qty.test(v)) got.qty = c;\n        else if (got.nm < 0 && HEAD.nm.test(v)) got.nm = c;\n      }\n      if (got.bc >= 0 && got.qty >= 0) { best = got; break; }\n    }\n    return best;\n  }\n  function looksBarcode(v) {\n    return /^[A-Za-z][A-Za-z0-9]{7,}$/.test(v);\n  }\n  function grab() {\n    var tables = allTables(), lines = [], seenTable = 0;\n    for (var t = 0; t < tables.length; t++) {\n      var col = findCols(tables[t]);\n      if (!col) continue;\n      seenTable++;\n      var rows = tables[t].rows;\n      for (var r = col.row + 1; r < rows.length; r++) {\n        var cells = rows[r].cells;\n        if (!cells || cells.length <= col.bc) continue;\n        var bc = txt(cells[col.bc]);\n        if (!looksBarcode(bc)) continue;                 // 합계 줄·빈 줄 건너뛰기\n        var q = txt(cells[col.qty]).replace(/[^0-9.\\-]/g, \"\");\n        var n = parseInt(q, 10);\n        if (isNaN(n) || n <= 0) n = 1;\n        var nm = col.nm >= 0 && cells.length > col.nm ? txt(cells[col.nm]) : \"\";\n        lines.push(bc + \"\\t\" + n + (nm ? \"\\t\" + nm : \"\"));\n      }\n    }\n    return { lines: lines, tables: seenTable };\n  }\n  function findCode() {\n    var LABEL = /(전표\\s*번호|반품\\s*코드)/;\n    var ins = document.querySelectorAll(\"input[type=text], input:not([type])\");\n    for (var i = 0; i < ins.length; i++) {\n      var el = ins[i], v = String(el.value || \"\").trim();\n      if (!v) continue;\n      var cell = el.closest ? el.closest(\"td, th, div, label\") : null;\n      var prev = cell && cell.previousElementSibling ? txt(cell.previousElementSibling) : \"\";\n      var own  = cell ? txt(cell).replace(v, \"\") : \"\";\n      var lab  = (el.getAttribute(\"placeholder\") || \"\") + \" \" + (el.getAttribute(\"title\") || \"\");\n      if (LABEL.test(prev) || LABEL.test(own) || LABEL.test(lab)) return v;\n    }\n    var m = (document.body.innerText || \"\").match(/BSDR\\w*_\\d{8}_\\d+/);\n    return m ? m[0] : \"\";\n  }\n  function findStore() {\n    var body = document.body ? (document.body.innerText || \"\") : \"\";\n    var m = body.match(/([가-힣A-Za-z0-9·\\s]{2,20}?점)\\s*[\\/(]\\s*([A-Za-z]{2,6}\\d{3,6})\\s*\\)?/);\n    if (m) return { code: m[2].toUpperCase(), name: m[1].trim() };\n    var c = body.match(/\\b([A-Z]{2,6}\\d{3,6})\\b/);\n    var n = body.match(/([가-힣]{2,12}점)/);\n    if (c) return { code: c[1].toUpperCase(), name: n ? n[1] : \"\" };\n    return null;\n  }\n  var got = grab();\n  if (!got.lines.length) {\n    alert(got.tables\n      ? \"표는 찾았지만 바코드가 있는 줄이 없습니다. 리스트를 먼저 조회한 뒤 다시 눌러 주세요.\"\n      : \"바코드·수량 열이 있는 표를 찾지 못했습니다.\\n상품입고관리 또는 매장반품관리의 리스트 화면에서 눌러 주세요.\");\n    return;\n  }\n  var text = got.lines.join(\"\\n\");\n  var code = findCode();\n  var store = findStore();\n  function openApp() {\n    var payload = JSON.stringify({ code: code, text: text, store: store });\n    var packed = \"\";\n    try {\n      packed = btoa(unescape(encodeURIComponent(payload)));\n    } catch (e) { packed = \"\"; }\n    if (!packed || packed.length > 120000) {\n      alert(\"리스트가 길어 자동으로 넘기지 못했습니다. 복사해 두었으니 검수 프로그램에 붙여넣기 하세요.\");\n      window.open(APP, \"_blank\");\n      return;\n    }\n    var w = window.open(APP + \"#d=\" + encodeURIComponent(packed), \"_blank\");\n    if (!w) alert(\"팝업이 막혔습니다. 리스트는 복사해 두었으니 검수 프로그램에 붙여넣기 하세요.\");\n  }\n  var done = function () {\n    var msg = got.lines.length + \"줄을 복사했습니다.\"\n      + (store ? \"\\n매장: \" + (store.name || store.code) + \" (\" + store.code + \")\" : \"\")\n      + (code ? \"\\n번호: \" + code : \"\");\n    if (APP.indexOf(\"__APP\") !== 0) {\n      if (confirm(msg + \"\\n\\n검수 프로그램을 열까요?\")) openApp();\n    } else {\n      alert(msg + \"\\n검수 프로그램에 붙여넣기 하세요.\");\n    }\n  };\n  if (navigator.clipboard && navigator.clipboard.writeText) {\n    navigator.clipboard.writeText(text).then(done, function () {\n      var ta = document.createElement(\"textarea\");\n      ta.value = text; ta.style.position = \"fixed\"; ta.style.opacity = \"0\";\n      document.body.appendChild(ta); ta.select();\n      try { document.execCommand(\"copy\"); } catch (e) {}\n      document.body.removeChild(ta);\n      done();\n    });\n  } else {\n    done();\n  }\n})();";
+var app = document.getElementById("app");
+var out = document.getElementById("out");
+var bm  = document.getElementById("bm");
+
+function build(){
+  var url = (app.value || "").trim();
+  var code = SRC.replace("__APP_URL__", url.replace(/"/g, ""));
+  bm.href = "javascript:" + encodeURIComponent(code);
+  out.classList.remove("off");
+}
+/* 이 페이지가 검수 프로그램과 같은 곳에 올라가 있으면 주소를 자동으로 넣는다 */
+(function autofill(){
+  if (location.protocol.indexOf("http") !== 0) {
+    var h = document.getElementById("apphint");
+    if (h) h.textContent = "깃허브에 올린 검수 프로그램 주소를 붙여넣으세요. 비워 두면 리스트가 클립보드에만 복사되고, 검수 프로그램에 직접 붙여넣기 하면 됩니다.";
+    return;
+  }
+  app.value = location.href.replace(/[^/]*$/, "") + "index.html";
+})();
+
+app.addEventListener("input", build);
+bm.addEventListener("click", function(e){
+  e.preventDefault();
+  alert("이 버튼은 누르는 것이 아니라 북마크바로 끌어다 놓는 것입니다.");
+});
+build();
+</script>
+
+</div>
+</body>
+</html>
