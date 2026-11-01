@@ -468,8 +468,8 @@
     </div>
 
     <div class="panel" id="loc-panel" hidden>
-      <h2>2 · 재고 자료 연결 <span class="optional">선택</span></h2>
-      <p class="hint">재고 위치(박스번호)가 명시된 엑셀 자료가 있을 때만 작동합니다. 자료가 없으면 이 단계를 건너뛰어도 되고, 그때는 박스번호 없이 수량 대조만 진행됩니다.<br>파일을 한 번 연결해 두면, 그 파일이 수정될 때마다 알아서 다시 읽어 반영합니다.</p>
+      <h2>2 · 재고 자료 연결 <span class="optional">선택 — 없어도 됩니다</span></h2>
+      <p class="hint"><b>이 단계는 건너뛰어도 됩니다.</b> 매장에서 재고 위치(박스번호) 엑셀을 따로 만들어 둔 경우에만 쓰는 기능입니다. 연결하지 않으면 박스번호 칸만 비고, 입고·반품 검수는 그대로 진행됩니다.<br>한 번 연결해 두면 그 파일이 수정될 때마다 알아서 다시 읽어 반영합니다(PC 크롬·엣지).</p>
       <div class="filebox">
         <input type="file" id="loc-file" accept=".xlsx,.xls,.csv">
         <button class="btn" id="btn-loc-pick" type="button">엑셀 연결하기</button>
@@ -481,7 +481,11 @@
           <span>지우기</span>
         </button>
       </div>
-      <div class="status" id="loc-status" style="margin-top:10px">연결된 자료 없음</div>
+      <div class="row" style="margin-top:12px">
+        <button class="btn primary" id="btn-loc-skip" type="button">재고 자료 없이 진행 →</button>
+        <span class="sub">박스번호 없이 수량 대조만 합니다. 나중에 언제든 연결할 수 있습니다.</span>
+      </div>
+      <div class="status" id="loc-status" style="margin-top:10px">연결된 자료 없음 — 없어도 검수는 그대로 됩니다</div>
       <div id="loc-map" hidden style="margin-top:14px">
         <p class="hint">머리글을 보고 자동으로 잡은 구성입니다. 다르면 바꾸고 저장하세요.</p>
         <div class="preview"><table id="loc-table"></table></div>
@@ -3258,8 +3262,7 @@ window.__qrcode = (typeof qrcode !== "undefined") ? qrcode : (typeof module !== 
   function startWork(){
     var list = buildItems();
     if (!list || !list.length){ alert("바코드 열을 지정해 주세요."); return; }
-    if (usesBox() && !locRows.length &&
-        !confirm("재고 자료가 연결되지 않아 박스번호가 표시되지 않습니다. 이대로 시작할까요?")) return;
+    /* 재고 자료는 선택 사항이다 — 없으면 박스번호만 빠지고 검수는 그대로 진행한다 */
     items = list; index = {}; unknown = []; log = [];
     for (var i = 0; i < items.length; i++) index[items[i].norm] = items[i];
     mine = { c:{}, u:{}, p:{} }; peers = {};
@@ -4491,7 +4494,12 @@ window.__qrcode = (typeof qrcode !== "undefined") ? qrcode : (typeof module !== 
   }
   function setLocStatus(msg){ $("loc-status").innerHTML = msg; }
   function showStatus(extra){
-    if (!locRows.length){ setLocStatus("연결된 자료 없음"); return; }
+    if (!locRows.length){
+      setLocStatus(FileLink.supported
+        ? "연결된 자료 없음 — 없어도 검수는 그대로 됩니다"
+        : "연결된 자료 없음 — 이 기기는 파일 자동 감시가 안 됩니다(PC 크롬·엣지 전용). 그대로 다음 단계로 진행하세요");
+      return;
+    }
     setLocStatus("<b>" + esc(locFileName || "재고 자료") + "</b> · " + locRows.length + "행" +
       (locFileMod ? " · 파일 저장 " + fmtTime(locFileMod) : "") +
       (linkHandle ? " · <span style='color:var(--ok)'>자동 감시 중</span>" : "") +
@@ -4747,6 +4755,11 @@ window.__qrcode = (typeof qrcode !== "undefined") ? qrcode : (typeof module !== 
   /* --- 버튼 --- */
   $("btn-loc-pick").addEventListener("click", function(){
     if (FileLink.supported) linkFile(); else $("loc-file").click();
+  });
+  /* 재고 자료는 선택 사항 — 그냥 다음 단계로 내려간다 */
+  $("btn-loc-skip").addEventListener("click", function(){
+    $("paste-panel").scrollIntoView({ behavior:"smooth", block:"start" });
+    setTimeout(function(){ try { $("paste").focus({ preventScroll:true }); } catch (e) {} }, 400);
   });
   $("loc-file").addEventListener("change", function(e){
     var f = e.target.files && e.target.files[0];
@@ -5282,6 +5295,7 @@ window.__qrcode = (typeof qrcode !== "undefined") ? qrcode : (typeof module !== 
       : "검수하면서 넣을 박스번호까지 표시합니다";
     updateMapSummary();
     updatePackBar();
+    showStatus();
     if (!$("stage-work").hidden) render();
   }
   $("mode-resupply").addEventListener("click", function(){ setMode("resupply"); });
