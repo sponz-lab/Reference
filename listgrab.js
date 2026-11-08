@@ -329,19 +329,30 @@
     alert(why());
   }
 
+  function copyOld() {
+    var ta = document.createElement("textarea");
+    ta.value = text; ta.style.position = "fixed"; ta.style.opacity = "0";
+    document.body.appendChild(ta); ta.select();
+    try { document.execCommand("copy"); } catch (e) {}
+    document.body.removeChild(ta);
+  }
+
   function finish() {
     text = got.lines.join("\n");
     code = got.code || findCode();
+    try { window.focus(); } catch (e) {}
+
+    /* 상세 창이 떴다 닫히는 사이 이 창이 포커스를 잃으면
+       클립보드 복사가 응답 없이 멈춘다. 1.2초를 넘기면 옛 방식으로 돌린다. */
+    var settled = false;
+    var go = function () { if (settled) return; settled = true; done(); };
+    var fallback = setTimeout(function () { if (settled) return; copyOld(); go(); }, 1200);
+    var ok = function () { clearTimeout(fallback); go(); };
+    var no = function () { clearTimeout(fallback); copyOld(); go(); };
+
     if (navigator.clipboard && navigator.clipboard.writeText) {
-      navigator.clipboard.writeText(text).then(done, function () {
-        var ta = document.createElement("textarea");
-        ta.value = text; ta.style.position = "fixed"; ta.style.opacity = "0";
-        document.body.appendChild(ta); ta.select();
-        try { document.execCommand("copy"); } catch (e) {}
-        document.body.removeChild(ta);
-        done();
-      });
-    } else done();
+      try { navigator.clipboard.writeText(text).then(ok, no); } catch (e) { no(); }
+    } else no();
   }
 
   function openApp() {
