@@ -4,6 +4,12 @@
 <meta charset="utf-8">
 <meta name="viewport" content="width=device-width, initial-scale=1, viewport-fit=cover">
 <title>입고 검수 · 출고 리스트 대조</title>
+<!-- 홈 화면에 추가하면 주소창 없이 열린다 — 창고에서 화면을 한 줄이라도 더 쓰기 위해 -->
+<meta name="mobile-web-app-capable" content="yes">
+<meta name="apple-mobile-web-app-capable" content="yes">
+<meta name="apple-mobile-web-app-status-bar-style" content="default">
+<meta name="apple-mobile-web-app-title" content="입고 검수">
+<meta name="theme-color" content="#FFFFFF">
 <style>
   :root{                      /* 밝은 화면 (기본) */
     --bg:#FFFFFF;
@@ -130,7 +136,7 @@
   .slab[data-state="bad"]{border-color:var(--rust);background:var(--rust-soft)}
   .slab[data-state="bad"] .verdict{color:var(--rust)}
   @media (prefers-reduced-motion: no-preference){
-    .slab.flash{animation:pop .18s ease-out}
+    .slab.pop{animation:pop .18s ease-out}
     @keyframes pop{from{transform:scale(.985)}to{transform:scale(1)}}
   }
 
@@ -392,12 +398,61 @@
   .status{color:var(--muted);font-size:13px}
   .status b{color:var(--text);font-weight:600}
 
+  /* ===== 휴대폰 — 창고에서 스캐너를 들고 쓰는 화면 =====
+     한 손에 제품, 한 손에 스캐너인 상황이라
+     ① 결과는 팔 길이에서 읽히게 크게, 화면 맨 위에 붙여 두고
+     ② 손가락으로 누를 것은 전부 48px 이상으로 키우고
+     ③ 당장 안 보는 것은 접어 둔다. */
   @media (max-width:620px){
-    .stats{grid-template-columns:repeat(2,1fr)}
-    .slab{flex-wrap:wrap;gap:10px}
-    .slab .verdict{font-size:26px}
-    .slab .count{font-size:24px}
-    .scanbar input{font-size:16px;padding:13px}
+    .wrap{padding:10px 10px 90px}
+    .topbar{gap:8px;margin-bottom:10px}
+    .topbar h1{font-size:19px}
+    .topbar .sub{display:none}
+    .panel{padding:13px}
+
+    /* 결과판 — 화면 위에 고정해 두고 글씨를 키운다 */
+    #stage-work .slab{
+      position:sticky; top:0; z-index:40;
+      flex-wrap:wrap; gap:8px; padding:14px;
+      box-shadow:0 6px 18px rgba(0,0,0,.18);
+    }
+    .slab .verdict{font-size:34px; line-height:1.1}
+    .slab .count{font-size:34px}
+    .slab .code{font-size:15px}
+    .slab .note,.slab .loc{font-size:14px}
+    .slab .detail{flex-basis:100%; order:3}
+
+    /* 누르는 것은 모두 크게 */
+    .btn{min-height:46px; padding:11px 15px; font-size:15px}
+    .btn.small{min-height:40px; padding:9px 12px; font-size:14px}
+    .icon-btn{min-height:46px}
+
+    .scanbar{flex-wrap:wrap; gap:8px}
+    .scanbar input{flex:1 1 100%; font-size:16px; padding:14px; text-align:center}
+    .scanbar .btn{flex:1 1 0; min-width:0}
+    #btn-cam{flex:1 1 100%}
+
+    .stats{grid-template-columns:repeat(2,1fr); gap:8px}
+    .stat{padding:9px 11px}
+    .stat b{font-size:22px}
+
+    /* 탭은 옆으로 밀어서 보되 누르기 쉽게 */
+    .tabs{flex-wrap:nowrap; overflow-x:auto; -webkit-overflow-scrolling:touch; padding-bottom:4px}
+    .tabs::-webkit-scrollbar{display:none}
+    .tab{flex:0 0 auto; min-height:42px; padding:9px 14px}
+
+    /* 표 — 좁은 화면에서는 '차이'와 '조정'을 접는다 (스캔·출고로 알 수 있다) */
+    .c-diff,.adj{display:none}
+    table{font-size:13px}
+    th,td{padding:8px 7px}
+
+    .packbar{flex-wrap:wrap}
+    .packbar .btn{min-height:44px}
+    #pack-no{min-height:44px; font-size:17px}
+
+    .footer-actions{position:sticky; bottom:0; background:var(--bg);
+      padding:10px 0 6px; margin-top:12px; border-top:1px solid var(--line)}
+    .footer-actions .btn{flex:1 1 44%}
   }
 </style>
 </head>
@@ -591,7 +646,8 @@
     </div>
 
     <div class="scanbar">
-      <input id="scan" autocomplete="off" autocapitalize="off" autocorrect="off" spellcheck="false" placeholder="여기를 클릭한 뒤 태그 바코드를 스캔하세요">
+      <input id="scan" autocomplete="off" autocapitalize="off" autocorrect="off" spellcheck="false" inputmode="none" placeholder="여기를 클릭한 뒤 태그 바코드를 스캔하세요">
+      <button class="btn" id="btn-keys" type="button" aria-pressed="false" title="화면 키보드를 열어 직접 입력">직접 입력</button>
       <button class="btn" id="btn-undo" title="마지막 스캔 취소">되돌리기</button>
       <button class="btn primary" id="btn-cam" type="button" title="휴대폰 카메라로 바코드 찍기">📷 카메라</button>
     </div>
@@ -3296,6 +3352,7 @@ window.__qrcode = (typeof qrcode !== "undefined") ? qrcode : (typeof module !== 
     updateShareBar();
     saveSession();
     if (!isTouch) document.getElementById("scan").focus();
+    if (window.keepAwake) window.keepAwake();   // 창고에서 화면이 꺼지지 않게
   }
 
   function audioCtx(){
@@ -3685,9 +3742,11 @@ window.__qrcode = (typeof qrcode !== "undefined") ? qrcode : (typeof module !== 
     $("slab-note").textContent = note || "";
     $("slab-count").innerHTML = count ? esc(count) + "<small>" + esc(countLabel || "") + "</small>" : "";
     $("slab-loc").textContent = "";
-    el.classList.remove("flash");
+    /* 이름이 전체 화면 점멸(.flash)과 겹치면 그 규칙(opacity:0)까지 따라와
+       결과판이 통째로 사라진다. 결과판 전용 이름을 쓴다. */
+    el.classList.remove("pop");
     void el.offsetWidth;
-    el.classList.add("flash");
+    el.classList.add("pop");
   }
 
   function showLoc(it){
@@ -4250,7 +4309,7 @@ window.__qrcode = (typeof qrcode !== "undefined") ? qrcode : (typeof module !== 
       };
       html = "<tr>" + hd("barcode", "바코드", "mono") + hd("name", "제품명") +
              hd("expected", "출고", "num") + hd("scanned", "스캔", "num") +
-             hd("diff", "차이", "num") + hd("status", "상태") +
+             hd("diff", "차이", "num c-diff") + hd("status", "상태") +
              (isPacking() ? hd("pack", "포장") : "") +
              "<th>조정</th>" +
              (withLoc ? "<th class='sortable sortth' data-sort='box' title='같은 박스끼리 모아 보기'>박스" + mark("box") + "</th>" : "") +
@@ -4283,7 +4342,7 @@ window.__qrcode = (typeof qrcode !== "undefined") ? qrcode : (typeof module !== 
           nameCell(it.name) +
           "<td class='qty'>" + it.expected + "</td>" +
           "<td class='qty'>" + (it.scanned + it.over) + "</td>" +
-          "<td class='qty'>" + (diff === 0 ? "0" : (diff > 0 ? "+" + diff : diff)) + "</td>" +
+          "<td class='qty c-diff'>" + (diff === 0 ? "0" : (diff > 0 ? "+" + diff : diff)) + "</td>" +
           "<td>" + tag + "</td>" +
           (isPacking() ? "<td class='packcell'>" + esc(packLabel(it)) + "</td>" : "") +
           "<td class='adj'><button class='btn small' title='1개 추가' data-plus='" + esc(it.norm) + "'>+</button>" +
@@ -5377,6 +5436,7 @@ window.__qrcode = (typeof qrcode !== "undefined") ? qrcode : (typeof module !== 
     items = []; unknown = []; log = []; index = {};
     mine = { c:{}, u:{}, p:{} }; peers = {};
     leaveShare();
+    if (window.dropAwake) window.dropAwake();
     $("stage-work").hidden = true;
     $("stage-setup").hidden = false;
     $("map-panel").hidden = true;
@@ -5495,7 +5555,81 @@ window.__qrcode = (typeof qrcode !== "undefined") ? qrcode : (typeof module !== 
     if ($("stage-work").hidden) return;
     var tag = (e.target.tagName || "").toLowerCase();
     if (tag === "button" || tag === "input" || tag === "select" || tag === "textarea") return;
-    scanEl.focus();
+    focusScan();
+  });
+
+  /* ---------- 블루투스 스캐너 — 어디를 보고 있든 받아 낸다 ----------
+     스캐너는 키보드처럼 글자를 쏟아붓는다. 입력칸에 커서가 없으면
+     그 글자가 허공으로 사라지는데, 창고에서는 화면을 볼 틈이 없으므로
+     문서 전체에서 받아 두었다가 확정한다.
+     사람이 치는 속도(글자 사이 500ms 이상)는 섞이지 않도록 끊는다. */
+  var beam = { buf: "", at: 0, timer: null };
+
+  function beamReset(){ beam.buf = ""; clearTimeout(beam.timer); beam.timer = null; }
+
+  function beamCommit(min){
+    var v = beam.buf.trim();
+    beamReset();
+    if (v.length >= (min || 4)) handleScan(v);
+  }
+
+  document.addEventListener("keydown", function(e){
+    if ($("stage-work").hidden) return;
+    if (e.ctrlKey || e.altKey || e.metaKey) return;
+
+    var t = e.target || {}, tag = (t.tagName || "").toLowerCase();
+    /* 입력칸 안에서 치는 중이면 그 칸이 알아서 한다 (전표번호·박스번호 등) */
+    if (tag === "input" || tag === "textarea" || tag === "select" || t.isContentEditable) return;
+
+    var now = Date.now();
+    if (now - beam.at > 500) beam.buf = "";    // 뜸하면 새 스캔으로 본다
+    beam.at = now;
+
+    if (e.key === "Enter"){
+      if (beam.buf.trim().length >= 4){ e.preventDefault(); beamCommit(4); }
+      else beamReset();
+      return;
+    }
+    if (e.key && e.key.length === 1){
+      beam.buf += e.key;
+      clearTimeout(beam.timer);
+      /* Enter 를 안 붙이는 스캐너 대비 — 입력이 멎으면 확정 */
+      beam.timer = setTimeout(function(){ beamCommit(8); }, 240);
+    }
+  });
+
+  /* ---------- 휴대폰 소프트 키보드 ----------
+     스캐너를 쓸 때 화면 키보드가 올라오면 절반이 가려진다.
+     기본은 올라오지 않게 두고, 직접 칠 때만 버튼으로 연다. */
+  var typing = false;
+  function setTyping(on){
+    typing = !!on;
+    scanEl.setAttribute("inputmode", typing ? "text" : "none");
+    scanEl.placeholder = typing
+      ? "바코드를 직접 입력하고 엔터"
+      : (isTouch ? "스캐너로 찍으세요 — 화면을 눌러도 키보드가 뜨지 않습니다" : "여기를 클릭한 뒤 태그 바코드를 스캔하세요");
+    var b = $("btn-keys");
+    if (b){ b.textContent = typing ? "키보드 닫기" : "직접 입력"; b.setAttribute("aria-pressed", String(typing)); }
+    if (typing){ scanEl.blur(); scanEl.focus(); } else { scanEl.blur(); }
+  }
+  if ($("btn-keys")) $("btn-keys").addEventListener("click", function(){ setTyping(!typing); });
+  setTyping(false);
+
+  /* ---------- 화면 꺼짐 방지 ----------
+     창고에서 양손에 제품을 들고 있으면 화면을 깨우러 갈 수가 없다. */
+  var wake = null;
+  function keepAwake(){
+    if (!navigator.wakeLock || $("stage-work").hidden) return;
+    navigator.wakeLock.request("screen").then(function(s){
+      wake = s;
+      s.addEventListener("release", function(){ wake = null; });
+    })["catch"](function(){});
+  }
+  function dropAwake(){ try{ if (wake) wake.release(); }catch(e){} wake = null; }
+  window.keepAwake = keepAwake;
+  window.dropAwake = dropAwake;
+  document.addEventListener("visibilitychange", function(){
+    if (!document.hidden && !wake) keepAwake();
   });
 
   takeHandoff();          // 회사 시스템에서 넘어온 리스트가 있으면 받아 넣는다 (모든 동작이 붙은 뒤)
