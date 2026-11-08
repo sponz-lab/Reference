@@ -384,9 +384,13 @@
 
     var url = APP + "#d=" + encodeURIComponent(packed);
 
-    /* 미리 잡아 둔 창이 있으면 그 창을 쓴다 (반품 경로) */
+    /* 미리 잡아 둔 창이 있으면 그 창을 쓴다 (반품 경로).
+       해시만 바꾸면 페이지가 다시 읽히지 않아 리스트가 들어가지 않는다.
+       물음표 뒤에 값을 하나 붙여 반드시 새로 읽히게 한다. */
     if (appWin && !appWin.closed) {
-      try { appWin.location.replace(url); appWin.focus(); return; } catch (e) {}
+      var fresh = APP + (APP.indexOf("?") < 0 ? "?" : "&") + "h=" + Date.now() +
+                  "#d=" + encodeURIComponent(packed);
+      try { appWin.location.replace(fresh); appWin.focus(); return; } catch (e) {}
     }
     var w = window.open(url, "_blank");
     if (w) { try { w.focus(); } catch (e) {} return; }
