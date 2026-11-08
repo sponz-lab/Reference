@@ -317,15 +317,31 @@
   }
 
   /* ───────── 실행 ───────── */
-  var text = "", code = "", store = findStore(), got = null;
+  var text = "", code = "", store = findStore(), got = null, appWin = null;
 
   function start() {
     got = fromAg() || fromTable();
     if (got) { finish(); return; }
-    if (fromReturnDetail(function (g, err) {
-      if (!g) { alert(err || why()); return; }
-      got = g; finish();
-    })) return;
+
+    if (returnList() && typeof window.openDetailPopup === "function") {
+      /* 반품은 상세 창을 읽느라 몇 초가 걸린다. 그 사이에 창을 열면
+         브라우저가 '사용자가 누른 것이 아니다'로 보고 막아 버리므로,
+         누른 지금 이 순간에 앱 창을 먼저 잡아 둔다. */
+      appWin = window.open(APP, "_blank");
+      if (!appWin) {
+        alert("새 창이 막혔습니다.\n주소창 오른쪽의 팝업 차단 표시를 눌러 이 사이트를 허용으로 바꾼 뒤 다시 눌러 주세요.");
+        return;
+      }
+      fromReturnDetail(function (g, err) {
+        if (!g) {
+          try { appWin.close(); } catch (e) {}
+          alert(err || why());
+          return;
+        }
+        got = g; finish();
+      });
+      return;
+    }
     alert(why());
   }
 
@@ -359,24 +375,31 @@
     var payload = JSON.stringify({ code: code, text: text, store: store });
     var packed = "";
     try { packed = btoa(unescape(encodeURIComponent(payload))); } catch (e) { packed = ""; }
+
     if (!packed || packed.length > 120000) {
-      alert("리스트가 길어 자동으로 넘기지 못했습니다. 복사해 두었으니 검수 프로그램에 붙여넣기 하세요.");
-      window.open(APP, "_blank");
+      alert("리스트가 길어 자동으로 넘기지 못했습니다.\n복사해 두었으니 검수 프로그램에 붙여넣기 하세요.");
+      if (appWin) { try { appWin.focus(); } catch (e) {} } else window.open(APP, "_blank");
       return;
     }
-    var w = window.open(APP + "#d=" + encodeURIComponent(packed), "_blank");
-    if (!w) alert("팝업이 막혔습니다. 리스트는 복사해 두었으니 검수 프로그램에 붙여넣기 하세요.");
+
+    var url = APP + "#d=" + encodeURIComponent(packed);
+
+    /* 미리 잡아 둔 창이 있으면 그 창을 쓴다 (반품 경로) */
+    if (appWin && !appWin.closed) {
+      try { appWin.location.replace(url); appWin.focus(); return; } catch (e) {}
+    }
+    var w = window.open(url, "_blank");
+    if (w) { try { w.focus(); } catch (e) {} return; }
+    alert("새 창이 막혔습니다.\n주소창 오른쪽의 팝업 차단 표시를 눌러 이 사이트를 허용으로 바꿔 주세요.\n리스트는 복사해 두었으니 검수 프로그램에 붙여넣기 하셔도 됩니다.");
   }
 
   function done() {
-    var msg = got.lines.length + "줄을 가져왔습니다."
+    /* 묻지 않고 바로 연다 — 가져온 줄 수는 검수 프로그램 화면에 나온다 */
+    if (APP.indexOf("__APP") !== 0) { openApp(); return; }
+    alert(got.lines.length + "줄을 가져왔습니다."
       + (store ? "\n매장: " + (store.name || store.code) + " (" + store.code + ")" : "")
-      + (code ? "\n번호: " + code : "");
-    if (APP.indexOf("__APP") !== 0) {
-      if (confirm(msg + "\n\n검수 프로그램을 열까요?")) openApp();
-    } else {
-      alert(msg + "\n검수 프로그램에 붙여넣기 하세요.");
-    }
+      + (code ? "\n번호: " + code : "")
+      + "\n\n검수 프로그램에 붙여넣기 하세요.");
   }
 
   start();
