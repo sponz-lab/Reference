@@ -3691,9 +3691,17 @@ window.__qrcode = (typeof qrcode !== "undefined") ? qrcode : (typeof module !== 
   // 화면·엑셀에 찍히는 박스번호 문자열
   // 완전 일치 박스를 먼저 쓰고, 같은 품번 계열의 다른 박스는 (계열)을 붙여 뒤에 덧붙인다.
   // 계열 후보에서는 전시·불량·유실 같은 특수 박스를 제외한다(그 바코드로 등록된 게 아니므로).
+  /* 이 기기에 엑셀이 없어도, 엑셀을 연결한 기기가 보내 준 박스 위치가 있으면 쓴다 */
+  function sharedBox(code){ var it = index[code]; return (it && it.boxShared) || ""; }
+  function hasBoxInfo(){
+    if (locRows.length) return true;
+    for (var i = 0; i < items.length; i++) if (items[i].boxShared) return true;
+    return false;
+  }
+
   function boxText(code){
     var f = boxesOf(code);
-    if (!f) return locRows.length ? "—" : "";
+    if (!f) return sharedBox(code) || (locRows.length ? "—" : "");
     var seen = {}, out = [], later = [];
 
     var add = function(r, kinMark){
@@ -3889,9 +3897,16 @@ window.__qrcode = (typeof qrcode !== "undefined") ? qrcode : (typeof module !== 
   // 전표 리스트를 공유 저장소에 올린다 (검수 시작한 기기가 한 번)
   function publishList(code){
     if (!canShare() || !code) return Promise.resolve(false);
+    /* 재고 엑셀은 연결한 기기에만 있다. 박스 위치를 리스트에 같이 실어
+       보내야 QR 로 합류한 휴대폰에서도 제품을 찾을 수 있다. */
     var slim = [];
     for (var i = 0; i < items.length; i++){
-      slim.push({ b:items[i].barcode, n:items[i].norm, m:items[i].name || "", e:items[i].expected });
+      var row = { b:items[i].barcode, n:items[i].norm, m:items[i].name || "", e:items[i].expected };
+      if (locRows.length){
+        var bx = boxText(items[i].norm);
+        if (bx && bx !== "—") row.x = bx;
+      }
+      slim.push(row);
     }
     return share.db.doc(sessPath(code)).set({
       mode: mode, code: String(code), items: slim, at: Date.now(),
@@ -3943,12 +3958,21 @@ window.__qrcode = (typeof qrcode !== "undefined") ? qrcode : (typeof module !== 
         items = []; index = {};
         for (var i = 0; i < d.items.length; i++){
           var r = d.items[i];
-          var it = { barcode:r.b, norm:r.n, name:r.m, expected:r.e, scanned:0, over:0, lastAt:0, packs:null };
+          var it = { barcode:r.b, norm:r.n, name:r.m, expected:r.e, scanned:0, over:0, lastAt:0, packs:null,
+                     boxShared: r.x || "" };
           items.push(it); index[it.norm] = it;
         }
         if (d.mode) setMode(d.mode);
         recompute();
         if (!$("stage-work").hidden) render();
+      } else {
+        /* 엑셀이 고쳐져 박스 위치가 새로 올라오면 그것만 갈아 끼운다 */
+        var changed = false;
+        for (var j = 0; j < d.items.length; j++){
+          var q = d.items[j], hit = index[q.n];
+          if (hit && (q.x || "") !== (hit.boxShared || "")){ hit.boxShared = q.x || ""; changed = true; }
+        }
+        if (changed && !$("stage-work").hidden) render();
       }
       if (onReady){ onReady(true); onReady = null; }
     }, function(){ if (onReady){ onReady(false); onReady = null; } });
@@ -4344,7 +4368,7 @@ window.__qrcode = (typeof qrcode !== "undefined") ? qrcode : (typeof module !== 
       }
       if (!any) html += "<tr><td colspan='4' style='color:var(--muted)'>이상 없음</td></tr>";
     } else {
-      var withLoc = usesBox() && locRows.length > 0;
+      var withLoc = usesBox() && hasBoxInfo();
       var mark = function(key){
         if (sortCol !== key || !sortDir) return "<span class='sarw'>⇅</span>";
         return "<span class='sarw on'>" + (sortDir === 1 ? "▲" : "▼") + "</span>";
@@ -4566,7 +4590,7 @@ window.__qrcode = (typeof qrcode !== "undefined") ? qrcode : (typeof module !== 
 
   /* ---------- CSV ---------- */
   function exportCsv(){
-    var hasLoc = usesBox() && locRows.length > 0;
+    var hasLoc = usesBox() && hasBoxInfo();
     var pk = isPacking();
     var head = ["바코드","제품명","출고수량","스캔수량","차이","상태"];
     if (pk) head.push("포장박스");
@@ -4659,6 +4683,8 @@ window.__qrcode = (typeof qrcode !== "undefined") ? qrcode : (typeof module !== 
       render();
       updateSyncBar(true);
       if (lastScanItem) showLoc(lastScanItem);   // 화면에 떠 있는 결과의 박스번호도 갱신
+      // 함께 검수 중인 휴대폰에도 바뀐 박스 위치를 올려 준다
+      if (canShare() && share.joined) publishList(share.joined);
     }
   }
 
