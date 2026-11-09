@@ -3355,18 +3355,58 @@ window.__qrcode = (typeof qrcode !== "undefined") ? qrcode : (typeof module !== 
     if (window.keepAwake) window.keepAwake();   // 창고에서 화면이 꺼지지 않게
   }
 
+  /* 전화가 오거나 다른 앱이 소리를 가져가면 이 소리 장치가 멈춘다.
+     아이폰은 끊긴 뒤에도 '멀쩡한 척' 돌아오는 일이 있어, 그럴 때는
+     아예 새로 만든다. 음성 안내는 다른 장치라 혼자 살아남는다. */
+  function newAudio(){
+    var AC = window.AudioContext || window.webkitAudioContext;
+    if (!AC) return null;
+    try { if (audioCtx.ctx) audioCtx.ctx.close(); } catch (e) {}
+    audioCtx.ctx = new AC();
+    audioCtx.master = audioCtx.ctx.createGain();
+    audioCtx.master.gain.value = soundLevels[soundStep].gain;
+    audioCtx.master.connect(audioCtx.ctx.destination);
+    audioCtx.ctx.onstatechange = function(){
+      var s = audioCtx.ctx && audioCtx.ctx.state;
+      if (s === "interrupted" || s === "suspended") audioCtx.broken = true;
+    };
+    audioCtx.broken = false;
+    try { if (audioCtx.ctx.state === "suspended") audioCtx.ctx.resume(); } catch (e) {}
+    return audioCtx.ctx;
+  }
+
   function audioCtx(){
     var AC = window.AudioContext || window.webkitAudioContext;
     if (!AC) return null;
-    if (!audioCtx.ctx){
-      audioCtx.ctx = new AC();
-      audioCtx.master = audioCtx.ctx.createGain();
-      audioCtx.master.gain.value = soundLevels[soundStep].gain;
-      audioCtx.master.connect(audioCtx.ctx.destination);
+    if (!audioCtx.ctx) return newAudio();
+
+    var st = audioCtx.ctx.state;
+    if (st === "closed" || st === "interrupted") return newAudio();
+    if (st === "suspended"){
+      try { audioCtx.ctx.resume(); } catch (e) {}
+      /* 깨우기를 시도해도 안 돌아오면 다음 번에 새로 만든다 */
+      if (audioCtx.ctx.state === "suspended") audioCtx.broken = true;
     }
-    if (audioCtx.ctx.state === "suspended") audioCtx.ctx.resume();
+    if (audioCtx.broken && audioCtx.ctx.state === "running"){
+      /* 끊김에서 돌아왔지만 소리가 안 나는 아이폰 증상 — 새로 만든다 */
+      return newAudio();
+    }
     return audioCtx.ctx;
   }
+
+  /* 화면으로 돌아오면 소리 장치를 손봐 둔다 */
+  function reviveAudio(){
+    if (!audioCtx.ctx) return;
+    var st = audioCtx.ctx.state;
+    if (st === "running" && !audioCtx.broken) return;
+    try {
+      if (st === "suspended") audioCtx.ctx.resume();
+    } catch (e) {}
+    if (audioCtx.ctx.state !== "running" || audioCtx.broken) newAudio();
+  }
+  document.addEventListener("visibilitychange", function(){ if (!document.hidden) reviveAudio(); });
+  window.addEventListener("focus", reviveAudio);
+  window.addEventListener("pageshow", reviveAudio);
 
   // 종소리 한 번: 기음 + 배음을 겹쳐 울림을 만든다
   function bell(freq, at, dur, vol){
