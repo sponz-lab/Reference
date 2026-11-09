@@ -4093,7 +4093,53 @@ window.__qrcode = (typeof qrcode !== "undefined") ? qrcode : (typeof module !== 
     scheduleSave();
   }
 
+  /* ---------- 한글 자판으로 찍힌 바코드 되돌리기 ----------
+     블루투스 스캐너는 키보드처럼 글자를 보낸다. 휴대폰이나 PC에
+     한글 자판이 켜져 있으면 F263… 이 ㄹ263… 으로 바뀌어 들어온다.
+     스캐너를 탓할 일이 아니고 입력기가 바꾼 것이므로, 눌린 자판으로
+     되돌려 읽는다. (두벌식 기준) */
+  var HAN_CHO = ["r","R","s","e","E","f","a","q","Q","t","T","d","w","W","c","z","x","v","g"];
+  var HAN_JUNG = ["k","o","i","O","j","p","u","P","h","hk","ho","hl","y","n","nj","np","nl","b","m","ml","l"];
+  var HAN_JONG = ["","r","R","rt","s","sw","sg","e","f","fr","fa","fq","ft","fx","fv","fg","a","q","qt","t","T","d","w","c","z","x","v","g"];
+  var HAN_SINGLE = {
+    "ㄱ":"r","ㄲ":"R","ㄳ":"rt","ㄴ":"s","ㄵ":"sw","ㄶ":"sg","ㄷ":"e","ㄸ":"E","ㄹ":"f",
+    "ㄺ":"fr","ㄻ":"fa","ㄼ":"fq","ㄽ":"ft","ㄾ":"fx","ㄿ":"fv","ㅀ":"fg","ㅁ":"a","ㅂ":"q",
+    "ㅃ":"Q","ㅄ":"qt","ㅅ":"t","ㅆ":"T","ㅇ":"d","ㅈ":"w","ㅉ":"W","ㅊ":"c","ㅋ":"z",
+    "ㅌ":"x","ㅍ":"v","ㅎ":"g","ㅏ":"k","ㅐ":"o","ㅑ":"i","ㅒ":"O","ㅓ":"j","ㅔ":"p",
+    "ㅕ":"u","ㅖ":"P","ㅗ":"h","ㅘ":"hk","ㅙ":"ho","ㅚ":"hl","ㅛ":"y","ㅜ":"n","ㅝ":"nj",
+    "ㅞ":"np","ㅟ":"nl","ㅠ":"b","ㅡ":"m","ㅢ":"ml","ㅣ":"l"
+  };
+  var HAS_HANGUL = /[ㄱ-ㆎ가-힣]/;
+
+  function hanToKeys(s){
+    var out = "";
+    for (var i = 0; i < s.length; i++){
+      var ch = s.charAt(i), cp = s.charCodeAt(i);
+      if (cp >= 0xAC00 && cp <= 0xD7A3){
+        var v = cp - 0xAC00;
+        out += HAN_CHO[Math.floor(v / 588)] + HAN_JUNG[Math.floor((v % 588) / 28)] + HAN_JONG[v % 28];
+      } else if (HAN_SINGLE[ch] !== undefined){
+        out += HAN_SINGLE[ch];
+      } else out += ch;
+    }
+    return out;
+  }
+
+  /* 한글로 바뀌는 과정에서 대소문자 정보가 지워진다.
+     출고 리스트에 글자만 같은 바코드가 딱 하나 있으면 그 원문을 쓴다. */
+  function fixHangul(raw){
+    if (!HAS_HANGUL.test(raw)) return raw;
+    var guess = hanToKeys(raw);
+    var low = norm(guess).toLowerCase(), hit = null, many = false;
+    for (var k in index){
+      if (k.toLowerCase() === low){ if (hit) many = true; hit = index[k].barcode; }
+    }
+    if (hit && !many) return hit;
+    return guess.toUpperCase();
+  }
+
   function handleScan(raw){
+    raw = fixHangul(String(raw == null ? "" : raw));
     if (tryJoinCode(raw)) return;      // 참여 QR 은 블루투스 스캐너로 찍어도 들어간다
     var n = norm(raw);
     if (!n) return;
@@ -5565,6 +5611,30 @@ window.__qrcode = (typeof qrcode !== "undefined") ? qrcode : (typeof module !== 
      사람이 치는 속도(글자 사이 500ms 이상)는 섞이지 않도록 끊는다. */
   var beam = { buf: "", at: 0, timer: null };
 
+  /* 눌린 자판 자체를 읽는다. 한글·일본어 등 어떤 입력기가 켜져 있어도
+     스캐너가 보낸 글자가 그대로 들어온다. */
+  function keyChar(e){
+    /* 입력기가 손대지 않았으면 들어온 글자를 그대로 쓴다 (대소문자 보존) */
+    if (e.key && e.key.length === 1 && e.key.charCodeAt(0) < 128) return e.key;
+
+    /* 한글 등으로 바뀌어 들어온 경우에만 눌린 자판을 본다 */
+    var c = e.code || "";
+    var caps = false;
+    try { caps = e.getModifierState && e.getModifierState("CapsLock"); } catch (err) {}
+    if (/^Key[A-Z]$/.test(c)){
+      var up = e.shiftKey !== !!caps;      // 둘 중 하나만 켜져 있으면 대문자
+      var L = c.charAt(3);
+      return up ? L : L.toLowerCase();
+    }
+    if (/^Digit[0-9]$/.test(c) && !e.shiftKey) return c.charAt(5);
+    if (/^Numpad[0-9]$/.test(c)) return c.charAt(6);
+    var pair = { Minus:["-","_"], Equal:["=","+"], Period:[".",">"], Comma:[",","<"],
+                 Slash:["/","?"], Backslash:["\\","|"], Space:[" "," "],
+                 NumpadSubtract:["-","-"], NumpadDecimal:[".","."] }[c];
+    if (pair) return e.shiftKey ? pair[1] : pair[0];
+    return "";
+  }
+
   function beamReset(){ beam.buf = ""; clearTimeout(beam.timer); beam.timer = null; }
 
   function beamCommit(min){
@@ -5585,13 +5655,14 @@ window.__qrcode = (typeof qrcode !== "undefined") ? qrcode : (typeof module !== 
     if (now - beam.at > 500) beam.buf = "";    // 뜸하면 새 스캔으로 본다
     beam.at = now;
 
-    if (e.key === "Enter"){
+    if (e.key === "Enter" || e.code === "Enter" || e.code === "NumpadEnter"){
       if (beam.buf.trim().length >= 4){ e.preventDefault(); beamCommit(4); }
       else beamReset();
       return;
     }
-    if (e.key && e.key.length === 1){
-      beam.buf += e.key;
+    var ch = keyChar(e);
+    if (ch){
+      beam.buf += ch;
       clearTimeout(beam.timer);
       /* Enter 를 안 붙이는 스캐너 대비 — 입력이 멎으면 확정 */
       beam.timer = setTimeout(function(){ beamCommit(8); }, 240);
