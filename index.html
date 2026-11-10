@@ -441,10 +441,12 @@
     .tabs::-webkit-scrollbar{display:none}
     .tab{flex:0 0 auto; min-height:42px; padding:9px 14px}
 
-    /* 표 — 좁은 화면에서는 '차이'와 '조정'을 접는다 (스캔·출고로 알 수 있다) */
-    .c-diff,.adj{display:none}
+    /* 표 — 좁은 화면에서는 '차이'만 접는다 (스캔·출고 숫자로 알 수 있다).
+       '조정'은 잘못 찍은 것을 되돌리는 칸이라 휴대폰에서 더 필요하다. */
+    .c-diff{display:none}
     table{font-size:13px}
     th,td{padding:8px 7px}
+    #list-table td.adj .btn{min-width:38px;min-height:38px;padding:6px 10px;font-size:17px;margin-right:4px}
 
     .packbar{flex-wrap:wrap}
     .packbar .btn{min-height:44px}
@@ -651,6 +653,8 @@
       <button class="btn" id="btn-undo" title="마지막 스캔 취소">되돌리기</button>
       <button class="btn primary" id="btn-cam" type="button" title="휴대폰 카메라로 바코드 찍기">📷 카메라</button>
     </div>
+
+    <p class="sub" id="undo-hint">잘못 찍었을 때 — 방금 것이면 <b>되돌리기</b>, 한참 전 것이면 아래 표에서 그 제품을 찾아 <b>조정</b> 칸의 <b>−</b> 를 누르세요. 수량을 다 채운 제품은 <b>완료</b> 또는 <b>전체</b> 탭에 있습니다.</p>
 
     <div class="packbar" id="packbar" hidden>
       <span class="plabel">지금 담는 포장 박스</span>
@@ -4100,9 +4104,16 @@ window.__qrcode = (typeof qrcode !== "undefined") ? qrcode : (typeof module !== 
     mine.p[key][packBox] = (mine.p[key][packBox] || 0) + 1;
   }
   function removePack(key, boxNo){
-    var b = boxNo != null ? String(boxNo) : packBox;
     var p = mine.p[key];
-    if (!p || !p[b]) return;
+    if (!p) return;
+    var b = boxNo != null ? String(boxNo) : packBox;
+    if (!p[b]){
+      /* 잘못 찍은 것을 나중에 발견하면 그때 담던 박스는 이미 지나가 있다.
+         지금 박스에 없으면 이 품목이 실제로 들어간 박스에서 뺀다. */
+      var keys = Object.keys(p);
+      if (!keys.length) return;
+      b = keys[keys.length - 1];
+    }
     p[b]--;
     if (p[b] <= 0) delete p[b];
     if (!Object.keys(p).length) delete mine.p[key];
@@ -4421,7 +4432,7 @@ window.__qrcode = (typeof qrcode !== "undefined") ? qrcode : (typeof module !== 
              hd("expected", "출고", "num") + hd("scanned", "스캔", "num") +
              hd("diff", "차이", "num c-diff") + hd("status", "상태") +
              (isPacking() ? hd("pack", "포장") : "") +
-             "<th>조정</th>" +
+             "<th title='잘못 찍은 것은 − 로 한 개씩 되돌립니다'>조정</th>" +
              (withLoc ? "<th class='sortable sortth' data-sort='box' title='같은 박스끼리 모아 보기'>박스" + mark("box") + "</th>" : "") +
              "</tr>";
       if (!list.length){
