@@ -662,6 +662,7 @@
       <input id="pack-no" type="text" inputmode="numeric" autocomplete="off" value="1" title="포장 박스 번호">
       <button class="btn small" id="btn-pack-next" type="button" title="다음 박스 — 새 상자를 포장할 때 누르세요">다음 박스 ▶</button>
       <span class="pstat" id="pack-stat"></span>
+      <button class="btn small" id="btn-pack-clear" type="button" title="이 박스에 찍은 것을 모두 지우고 처음부터 다시 검수합니다">이 박스 비우기</button>
       <button class="btn primary small" id="btn-report" type="button" style="margin-left:auto">박스별 반품 리포트</button>
     </div>
 
@@ -5593,6 +5594,45 @@ window.__qrcode = (typeof qrcode !== "undefined") ? qrcode : (typeof module !== 
   }
   $("btn-pack-prev").addEventListener("click", function(){ stepPack(-1); focusScan(); });
   $("btn-pack-next").addEventListener("click", function(){ stepPack(1); focusScan(); });
+  /* 한 박스를 통째로 다시 검수한다 — 그 박스에 찍은 것만 0 으로 되돌린다.
+     어디서 틀렸는지 찾느니 그 상자만 비우고 다시 찍는 편이 빠르다. */
+  $("btn-pack-clear").addEventListener("click", function(){
+    var box = String(packBox);
+    var n = 0, kinds = 0, k;
+    for (k in mine.p) if (mine.p[k][box] > 0){ n += mine.p[k][box]; kinds++; }
+
+    var otherDev = 0;
+    for (var d in peers){
+      var pp = peers[d] && peers[d].p;
+      for (var key in (pp || {})) if (pp[key][box] > 0) otherDev += pp[key][box];
+    }
+
+    if (!n && !otherDev){ alert(box + "번 박스에는 찍은 것이 없습니다."); return; }
+
+    var msg = box + "번 박스를 비웁니다.\n\n" +
+              "이 기기에서 찍은 " + kinds + "품목 " + n + "개가 0 으로 돌아갑니다.\n" +
+              "다른 박스와 다른 품목은 그대로입니다.\n";
+    if (otherDev) msg += "\n※ 다른 기기에서 찍은 " + otherDev + "개는 지워지지 않습니다.\n   그 기기에서도 같이 비워 주세요.\n";
+    msg += "\n되돌릴 수 없습니다. 진행할까요?";
+    if (!confirm(msg)) return;
+
+    for (k in mine.p){
+      var q = mine.p[k][box];
+      if (!q) continue;
+      mine.c[k] = (mine.c[k] || 0) - q;
+      if (mine.c[k] <= 0) delete mine.c[k];
+      delete mine.p[k][box];
+      if (!Object.keys(mine.p[k]).length) delete mine.p[k];
+    }
+    recompute();
+    render();
+    scheduleSave();
+    pushShare();
+    beep("ok");
+    alert(box + "번 박스를 비웠습니다. 처음부터 다시 찍으세요.");
+    focusScan();
+  });
+
   $("pack-no").addEventListener("change", function(){ setPackBox(this.value); });
   $("pack-no").addEventListener("keydown", function(e){
     if (e.key === "Enter"){ e.preventDefault(); setPackBox(this.value); focusScan(); }
