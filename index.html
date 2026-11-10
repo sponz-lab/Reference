@@ -3802,6 +3802,25 @@ window.__qrcode = (typeof qrcode !== "undefined") ? qrcode : (typeof module !== 
     el.classList.add("pop");
   }
 
+  /* 이 품목이 지금까지 어느 포장 박스에 몇 개 담겼는지 — 다른 기기 몫까지 합친다.
+     초과가 떴을 때 "이미 몇 번 박스에 들어가 있다"를 알아야 확인이 된다. */
+  function packedWhere(key){
+    var p = mergedPacks(key);
+    if (!p) return "";
+    var keys = Object.keys(p).filter(function(b){ return p[b] > 0; });
+    if (!keys.length) return "";
+    keys.sort(function(a, b){
+      var na = parseFloat(a), nb = parseFloat(b);
+      var ia = isNaN(na), ib = isNaN(nb);
+      if (ia !== ib) return ia ? 1 : -1;
+      if (!ia && na !== nb) return na - nb;
+      return String(a).localeCompare(String(b));
+    });
+    var out = [];
+    for (var i = 0; i < keys.length; i++) out.push(keys[i] + "번 " + p[keys[i]] + "개");
+    return out.join(" · ");
+  }
+
   function showLoc(it){
     lastScanItem = it;
     if (!usesBox() || !locRows.length) return;
@@ -4231,13 +4250,23 @@ window.__qrcode = (typeof qrcode !== "undefined") ? qrcode : (typeof module !== 
       if (wasFull){
         log.unshift({barcode:raw, norm:n, result:"초과", ts:Date.now(), pack:pack});
         beep("bad");
-        slab("over", "초과", it.barcode, "출고 리스트 수량(" + it.expected + "개)보다 많이 들어왔습니다", "+" + it.over, "초과분");
+        var where = isPacking() ? packedWhere(it.norm) : "";
+        slab("over", "초과", it.barcode,
+             "출고 리스트 수량(" + it.expected + "개)보다 많이 들어왔습니다" +
+             (where ? "  —  담긴 박스: " + where : ""),
+             "+" + it.over, "초과분");
       } else {
         var doneNow = it.scanned >= it.expected;
         log.unshift({barcode:raw, norm:n, result:doneNow ? "완료" : "일치", ts:Date.now(), pack:pack});
         beep(doneNow ? "done" : "ok");
+        /* 같은 품목이 여러 박스로 나뉘어 담기면 미리 알려 준다 — 나중에 초과로 놀라지 않게 */
+        var split = "";
+        if (isPacking()){
+          var mp = mergedPacks(it.norm);
+          if (mp && Object.keys(mp).length > 1) split = "  —  담긴 박스: " + packedWhere(it.norm);
+        }
         slab(doneNow ? "done" : "ok", doneNow ? "완료" : "일치", it.barcode,
-             (it.name ? it.name + " · " : "") + (doneNow ? "이 품목 검수 끝" : "남은 수량 " + (it.expected - it.scanned) + "개"),
+             (it.name ? it.name + " · " : "") + (doneNow ? "이 품목 검수 끝" : "남은 수량 " + (it.expected - it.scanned) + "개") + split,
              it.scanned + "/" + it.expected, "이 품목");
       }
       showLoc(it);
