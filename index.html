@@ -714,6 +714,7 @@
         <span class="row">
           <button class="btn primary small" id="btn-report-print" type="button">인쇄</button>
           <button class="btn small" id="btn-report-csv" type="button">CSV 저장</button>
+          <button class="btn small" id="btn-report-erp" type="button" title="전산의 박스번호·처리수량 칸에 넣을 자료를 복사합니다">전산 입력용 복사</button>
           <button class="btn ghost small" id="btn-report-close" type="button">닫기</button>
         </span>
       </div>
@@ -4638,6 +4639,53 @@ window.__qrcode = (typeof qrcode !== "undefined") ? qrcode : (typeof module !== 
       "</div>";
   }
 
+  /* 전산(매장반품관리)의 박스번호·처리수량 칸에 넣을 자료.
+     한 줄에 [바코드 / 실물 반품 개수 / 담긴 박스들] — 전산은 바코드로 줄을 찾는다. */
+  function erpText(){
+    var out = [];
+    for (var i = 0; i < items.length; i++){
+      var it = items[i];
+      var qty = it.scanned + it.over;
+      var p = mergedPacks(it.norm), boxes = "";
+      if (p){
+        var keys = Object.keys(p).filter(function(b){ return p[b] > 0; });
+        keys.sort(function(a, b){
+          var na = parseFloat(a), nb = parseFloat(b), ia = isNaN(na), ib = isNaN(nb);
+          if (ia !== ib) return ia ? 1 : -1;
+          if (!ia && na !== nb) return na - nb;
+          return String(a).localeCompare(String(b));
+        });
+        boxes = keys.join(",");
+      }
+      out.push(it.barcode + "\t" + qty + "\t" + boxes);
+    }
+    return out.join("\n");
+  }
+
+  function copyErp(){
+    var text = erpText();
+    var n = items.length;
+    var done = function(ok){
+      alert(n + "품목을 복사했습니다." + (ok ? "" : "\n(복사가 안 되었으면 다시 눌러 주세요)") +
+            "\n\n전산의 매장반품관리 화면에서 북마크\n「반품 입력하기」를 누르세요.");
+    };
+    if (navigator.clipboard && navigator.clipboard.writeText){
+      var settled = false;
+      var t = setTimeout(function(){ if (!settled){ settled = true; copyFallback(text); done(false); } }, 1200);
+      navigator.clipboard.writeText(text).then(
+        function(){ if (!settled){ settled = true; clearTimeout(t); done(true); } },
+        function(){ if (!settled){ settled = true; clearTimeout(t); copyFallback(text); done(false); } });
+    } else { copyFallback(text); done(false); }
+  }
+
+  function copyFallback(text){
+    var ta = document.createElement("textarea");
+    ta.value = text; ta.style.position = "fixed"; ta.style.opacity = "0";
+    document.body.appendChild(ta); ta.select();
+    try { document.execCommand("copy"); } catch (e) {}
+    document.body.removeChild(ta);
+  }
+
   function reportCsv(){
     var boxes = packBoxList();
     var out = [["포장박스","상품명","바코드","반품요청","실물반품","차이","비고"]];
@@ -5675,6 +5723,7 @@ window.__qrcode = (typeof qrcode !== "undefined") ? qrcode : (typeof module !== 
   $("rpt-head").addEventListener("input", function(){ if (!$("report-panel").hidden) buildReport(); });
   $("btn-report-close").addEventListener("click", function(){ $("report-panel").hidden = true; focusScan(); });
   $("btn-report-csv").addEventListener("click", reportCsv);
+  $("btn-report-erp").addEventListener("click", copyErp);
   $("btn-report-print").addEventListener("click", function(){
     buildReport();
     document.body.classList.add("printing");
