@@ -314,14 +314,31 @@
   .syncbar b{color:var(--text);font-weight:600}
   .syncbar .miss{color:var(--ochre);font-weight:700}
   .syncbar.flash{background:var(--ok-soft);border-color:var(--ok);color:var(--text)}
+  /* 다른 직원을 불러들이는 줄 — 놓치면 혼자 검수하게 되므로 눈에 띄어야 한다 */
   .sharebar{
-    display:flex;flex-wrap:wrap;gap:10px;align-items:center;
-    margin:0 0 14px;padding:9px 13px;border-radius:9px;
-    border:1px solid var(--ok);background:var(--ok-soft);font-size:13.5px
+    display:flex;flex-wrap:wrap;gap:12px;align-items:center;
+    margin:0 0 14px;padding:12px 14px;border-radius:12px;
+    border:2px solid var(--ok);background:var(--ok-soft);font-size:13.5px
   }
-  .sharebar b{font-family:var(--mono);font-size:16px}
+  .sharetxt{display:flex;flex-direction:column;gap:2px;min-width:0;flex:1 1 220px}
+  .sharebar b{font-family:var(--mono);font-size:17px;line-height:1.2}
+  .qrbtn{
+    margin-left:auto;display:inline-flex;align-items:center;gap:9px;
+    padding:12px 20px;font-size:16px;font-weight:700;border-radius:11px;
+    box-shadow:0 2px 0 rgba(0,0,0,.18)
+  }
+  .qrbtn .qrico{display:inline-flex;align-items:center}
   .qrbox{display:flex;justify-content:center;padding:16px;background:#fff;border-radius:12px;border:1px solid var(--line)}
-  .qrbox canvas{image-rendering:pixelated;width:280px;height:280px;max-width:100%}
+  .qrbox canvas{image-rendering:pixelated;width:340px;height:340px;max-width:100%}
+  /* 리스트를 읽고 나면 다음에 누를 것이 하나뿐이다 — 찾아 헤매지 않게 띄워 둔다 */
+  .startrow{
+    position:sticky;bottom:0;z-index:30;
+    background:var(--bg);padding:12px 0 4px;margin-left:-2px;
+    border-top:1px solid var(--line)
+  }
+  .bigstart{padding:14px 28px;font-size:17px;font-weight:700;border-radius:11px;box-shadow:0 2px 0 rgba(0,0,0,.18)}
+  .qr-panel{border:2px solid var(--ok);background:var(--ok-soft)}
+  .qr-panel h2{font-size:19px}
   .qrsub{text-align:center;margin-top:10px;color:var(--muted);font-size:13.5px}
   .qrsub b{font-family:var(--mono);color:var(--text);font-size:16px}
   .brief{
@@ -579,8 +596,8 @@
         <label class="check"><input type="checkbox" id="has-header"> 첫 줄은 머리글 (검수에서 제외)</label>
       </div>
       <div class="brief" id="brief" hidden style="margin-top:14px"></div>
-      <div class="row" style="margin-top:14px">
-        <button class="btn primary" id="btn-start">검수 시작</button>
+      <div class="row startrow" style="margin-top:14px">
+        <button class="btn primary bigstart" id="btn-start">검수 시작 →</button>
         <span class="sub" id="map-summary"></span>
       </div>
       <div id="preview-box" hidden style="margin-top:16px">
@@ -676,17 +693,26 @@
     <div class="brief" id="brief-work" hidden></div>
     <div class="syncbar" id="syncbar" hidden></div>
     <div class="sharebar" id="sharebar" hidden>
-      <b id="share-code"></b>
-      <span id="share-peers"></span>
-      <button class="btn small" id="btn-qr" type="button" style="margin-left:auto">참여 QR 보기</button>
+      <div class="sharetxt">
+        <b id="share-code"></b>
+        <span id="share-peers"></span>
+      </div>
+      <button class="btn primary qrbtn" id="btn-qr" type="button">
+        <span class="qrico" aria-hidden="true">
+          <svg viewBox="0 0 24 24" width="22" height="22" fill="currentColor">
+            <path d="M3 3h8v8H3V3zm2 2v4h4V5H5zm8-2h8v8h-8V3zm2 2v4h4V5h-4zM3 13h8v8H3v-8zm2 2v4h4v-4H5zm8 0h2v2h-2v-2zm4-2h2v2h-2v-2zm2 2h2v2h-2v-2zm-4 2h2v2h-2v-2zm2 2h2v2h-2v-2zm2-2h2v4h-2v-2h-2v-2h2z"/>
+          </svg>
+        </span>
+        휴대폰 참여 QR
+      </button>
     </div>
 
-    <div class="panel" id="qr-panel" hidden>
+    <div class="panel qr-panel" id="qr-panel" hidden>
       <div class="row" style="justify-content:space-between;margin-bottom:8px">
-        <h2 style="margin:0">함께 검수 참여</h2>
+        <h2 style="margin:0">📱 직원 휴대폰으로 이 QR을 찍으세요</h2>
         <button class="btn ghost small" id="btn-qr-close" type="button">닫기</button>
       </div>
-      <p class="hint">다른 직원은 <b>휴대폰 기본 카메라 앱</b>으로 이 QR을 비추기만 하면 됩니다. 뜨는 링크를 누르면 매장과 전표가 이미 들어간 채로 열립니다. 따로 입력할 것이 없습니다.</p>
+      <p class="hint"><b>휴대폰 기본 카메라 앱</b>으로 비추기만 하면 됩니다(검수 프로그램 안의 카메라가 아닙니다). 뜨는 링크를 누르면 매장·전표가 이미 들어간 채로 열리고, 찍은 수량이 이 화면과 실시간으로 합쳐집니다.</p>
       <div class="qrbox"><canvas id="qr-canvas" width="360" height="360"></canvas></div>
       <div class="qrsub" id="qr-sub"></div>
     </div>
@@ -4070,8 +4096,15 @@ window.__qrcode = (typeof qrcode !== "undefined") ? qrcode : (typeof module !== 
     $("share-code").textContent = share.joined;
     $("share-peers").textContent = others
       ? "다른 기기 " + others + "대와 함께 검수 중 — 수량이 실시간으로 합쳐집니다"
-      : "이 전표를 다른 휴대폰에서도 열면 수량이 함께 합쳐집니다";
+      : "직원 휴대폰으로 이 QR을 찍으면 같이 검수할 수 있습니다";
+
+    /* 처음 한 번은 QR 을 띄워 준다. 버튼이 있는 줄 모르고 혼자 찍는 일이 많다. */
+    if (!others && qrAuto !== share.joined && $("qr-panel").hidden){
+      qrAuto = share.joined;
+      showQR();
+    }
   }
+  var qrAuto = "";
 
   /* ---------- 기기별 몫 합산 ---------- */
   function eachShare(fn){

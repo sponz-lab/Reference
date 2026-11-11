@@ -1,0 +1,190 @@
+<!doctype html>
+<html lang="ko">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1, viewport-fit=cover">
+<title>입고 검수 설치</title>
+<meta name="theme-color" content="#FFFFFF">
+<style>
+  :root{
+    --bg:#F6F7F5; --card:#FFFFFF; --text:#17201B; --muted:#5B6660;
+    --line:#D8DED9; --ok:#2E7D4F; --ok-soft:#E6F2EA; --accent:#1B5E20;
+  }
+  *{box-sizing:border-box}
+  body{
+    margin:0;background:var(--bg);color:var(--text);
+    font:16px/1.65 -apple-system,BlinkMacSystemFont,"Apple SD Gothic Neo","Noto Sans KR","Malgun Gothic",sans-serif;
+  }
+  .wrap{max-width:860px;margin:0 auto;padding:28px 18px 80px}
+  h1{font-size:26px;margin:0 0 4px;letter-spacing:-.4px}
+  .lead{color:var(--muted);margin:0 0 24px}
+  .card{background:var(--card);border:1px solid var(--line);border-radius:14px;padding:20px;margin-bottom:16px}
+  .card h2{font-size:18px;margin:0 0 4px;display:flex;align-items:center;gap:9px}
+  .num{
+    flex:0 0 auto;width:26px;height:26px;border-radius:50%;background:var(--accent);color:#fff;
+    font-size:14px;font-weight:700;display:inline-flex;align-items:center;justify-content:center
+  }
+  .card p{margin:6px 0 0;color:var(--muted);font-size:14.5px}
+  .card p.lead2{color:var(--text)}
+  b{font-weight:700}
+  code{font-family:ui-monospace,SFMono-Regular,Menlo,monospace;background:#EDF0EE;padding:2px 6px;border-radius:5px;font-size:13.5px}
+
+  .urlrow{display:flex;gap:8px;align-items:center;margin-top:12px;flex-wrap:wrap}
+  .urlbox{
+    flex:1 1 320px;min-width:0;font-family:ui-monospace,SFMono-Regular,Menlo,monospace;
+    font-size:14px;padding:12px 13px;border:1px solid var(--line);border-radius:9px;background:#fff
+  }
+  .btn{
+    display:inline-flex;align-items:center;justify-content:center;gap:8px;
+    padding:12px 18px;border-radius:9px;border:1px solid var(--line);background:#fff;color:var(--text);
+    font-size:15px;font-weight:600;cursor:pointer;text-decoration:none;min-height:46px
+  }
+  .btn.primary{background:var(--accent);border-color:var(--accent);color:#fff}
+  .btn.big{font-size:17px;padding:15px 26px;box-shadow:0 2px 0 rgba(0,0,0,.18)}
+
+  .qrwrap{display:flex;gap:20px;align-items:center;flex-wrap:wrap;margin-top:14px}
+  .qrbox{background:#fff;border:1px solid var(--line);border-radius:12px;padding:12px;line-height:0}
+  .qrbox canvas{image-rendering:pixelated;width:200px;height:200px}
+  .qrtext{flex:1 1 240px;min-width:0}
+
+  .bm{
+    display:inline-flex;align-items:center;gap:9px;background:var(--accent);color:#fff;
+    padding:15px 26px;border-radius:11px;font-weight:700;font-size:17px;text-decoration:none;
+    box-shadow:0 2px 0 rgba(0,0,0,.2);cursor:grab
+  }
+  .bmrow{display:flex;gap:14px;flex-wrap:wrap;align-items:center;margin:14px 0 6px}
+  .note{background:var(--ok-soft);border:1px solid var(--ok);border-radius:10px;padding:13px 15px;margin-top:14px;font-size:14.5px}
+  ol{margin:10px 0 0;padding-left:22px}
+  ol li{margin:7px 0}
+  .muted{color:var(--muted)}
+  .foot{margin-top:28px;color:var(--muted);font-size:13.5px;text-align:center}
+  @media (prefers-color-scheme: dark){
+    :root:not([data-theme="light"]){
+      --bg:#141816; --card:#1C221F; --text:#ECF1EE; --muted:#9BA8A1; --line:#2E3733; --ok-soft:#1E3327;
+    }
+    :root:not([data-theme="light"]) code{background:#2A312E}
+    :root:not([data-theme="light"]) .urlbox,
+    :root:not([data-theme="light"]) .qrbox,
+    :root:not([data-theme="light"]) .btn{background:#222826;color:var(--text)}
+  }
+</style>
+</head>
+<body>
+<div class="wrap">
+
+  <h1>입고 검수 설치</h1>
+  <p class="lead">매장에서 할 일은 <b>3분</b>이면 끝납니다. 프로그램을 내려받거나 계정을 만들 일은 없습니다.</p>
+
+  <div class="card">
+    <h2><span class="num">1</span> 휴대폰에 담기</h2>
+    <p class="lead2">휴대폰 <b>기본 카메라</b>로 아래 QR을 비추고, 뜨는 링크를 누르세요.</p>
+    <div class="qrwrap">
+      <div class="qrbox"><canvas id="qr" width="240" height="240"></canvas></div>
+      <div class="qrtext">
+        <p><b>홈 화면에 추가</b>해 두면 앱처럼 열립니다.</p>
+        <p class="muted" style="margin-top:4px">아이폰 — 공유 버튼 → 「홈 화면에 추가」<br>안드로이드 — 점 세 개 → 「홈 화면에 추가」</p>
+        <div class="urlrow">
+          <input class="urlbox" id="appurl" readonly>
+          <button class="btn" id="copy" type="button">주소 복사</button>
+        </div>
+      </div>
+    </div>
+  </div>
+
+  <div class="card">
+    <h2><span class="num">2</span> 매장 PC에 북마크 두 개 걸기</h2>
+    <p class="lead2">아래 초록 버튼을 <b>북마크바로 끌어다 놓으세요</b>. 누르는 것이 아니라 끌어다 놓는 것입니다.</p>
+    <p class="muted">북마크바가 안 보이면 <code>Ctrl + Shift + B</code></p>
+    <div class="bmrow">
+      <a class="bm" id="bm1" href="#" draggable="true">리스트 가져오기</a>
+      <span class="muted">회사 시스템의 입고·반품 리스트를 검수 프로그램으로 가져옵니다</span>
+    </div>
+    <div class="bmrow">
+      <a class="bm" id="bm2" href="#" draggable="true">반품 입력하기</a>
+      <span class="muted">반품 검수가 끝나면 박스번호·처리수량을 회사 시스템에 채워 줍니다</span>
+    </div>
+    <div class="note">
+      이 북마크는 <b>매장 PC 크롬</b>에만 걸면 됩니다. 휴대폰에는 필요 없습니다.
+    </div>
+  </div>
+
+  <div class="card">
+    <h2><span class="num">3</span> 아침에 쓰는 순서</h2>
+    <ol>
+      <li>PC에서 회사 시스템에 <b>매장 아이디</b>로 로그인하고 전표번호로 조회</li>
+      <li>북마크 <b>리스트 가져오기</b> → 검수 프로그램이 열리며 리스트가 들어감</li>
+      <li><b>검수 시작</b> → 화면에 <b>참여 QR</b>이 뜸</li>
+      <li>직원들은 휴대폰 기본 카메라로 그 QR을 찍어 합류</li>
+      <li>각자 찍으면 수량이 <b>실시간으로 합쳐집니다</b></li>
+    </ol>
+    <div class="note">
+      백화점처럼 소리를 낼 수 없는 곳에서는 휴대폰이 <b>진동과 화면 색</b>으로 알려 줍니다.
+      블루투스 스캐너를 연결하면 화면 키보드 없이 그대로 찍을 수 있습니다.
+    </div>
+  </div>
+
+  <div class="card">
+    <h2><span class="num">4</span> 반품할 때</h2>
+    <ol>
+      <li><b>매장반품관리</b>에서 반품을 조회한 <b>목록 화면</b>에서 <b>리스트 가져오기</b> (반품코드를 누를 필요 없습니다)</li>
+      <li>상자마다 <b>포장 박스</b> 번호를 바꿔 가며 담고 스캔</li>
+      <li>끝나면 <b>박스별 반품 리포트</b>를 인쇄해 상자에 동봉</li>
+      <li>같은 화면의 <b>전산 입력용 복사</b> → 회사 시스템 목록에서 <b>반품 입력하기</b></li>
+      <li>박스번호·처리수량이 채워지면 <b>임시저장</b>과 <b>반품처리중</b>은 직접 누르세요</li>
+    </ol>
+  </div>
+
+  <p class="foot">문제가 있으면 도봉산점으로 알려 주세요.</p>
+</div>
+
+<script src="qrcode.js"></script>
+<script src="bookmarklets.js"></script>
+<script>
+(function(){
+  var base = location.href.replace(/[^/]*$/, "");
+  var app  = base + "index.html";
+  document.getElementById("appurl").value = app;
+
+  /* 휴대폰으로 옮겨 가는 QR */
+  (function(){
+    var make = window.qrcode, cv = document.getElementById("qr"), ctx = cv.getContext("2d");
+    ctx.fillStyle = "#fff"; ctx.fillRect(0, 0, cv.width, cv.height);
+    if (!make) return;
+    var q;
+    try { q = make(0, "M"); q.addData(app); q.make(); } catch (e) { return; }
+    var n = q.getModuleCount(), pad = 4;
+    var size = Math.floor(cv.width / (n + pad * 2));
+    var off = Math.floor((cv.width - size * n) / 2);
+    ctx.fillStyle = "#000";
+    for (var r = 0; r < n; r++)
+      for (var c = 0; c < n; c++)
+        if (q.isDark(r, c)) ctx.fillRect(off + c * size, off + r * size, size, size);
+  })();
+
+  document.getElementById("copy").addEventListener("click", function(){
+    var el = document.getElementById("appurl");
+    el.select();
+    var ok = false;
+    try { ok = document.execCommand("copy"); } catch (e) {}
+    if (navigator.clipboard && navigator.clipboard.writeText) navigator.clipboard.writeText(app);
+    this.textContent = "복사됨";
+    var b = this;
+    setTimeout(function(){ b.textContent = "주소 복사"; }, 1600);
+  });
+
+  /* 북마크 두 개 */
+  var one = window.BM_LIST ? window.BM_LIST.replace("__APP_URL__", app) : "";
+  var two = window.BM_RETURN || "";
+  document.getElementById("bm1").href = one ? "javascript:" + encodeURIComponent(one) : "#";
+  document.getElementById("bm2").href = two ? "javascript:" + encodeURIComponent(two) : "#";
+
+  function dragOnly(e){
+    e.preventDefault();
+    alert("이 버튼은 누르는 것이 아니라 북마크바로 끌어다 놓는 것입니다.");
+  }
+  document.getElementById("bm1").addEventListener("click", dragOnly);
+  document.getElementById("bm2").addEventListener("click", dragOnly);
+})();
+</script>
+</body>
+</html>
