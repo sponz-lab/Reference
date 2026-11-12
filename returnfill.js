@@ -73,10 +73,10 @@
     return null;
   }
 
-  function fillRt(rt, data) {
+  function fillRt(rt, data, done) {
     var m = rt.m, api = rt.g.api;
     var fBc = m["바코드"], fQty = m["처리수량"], fReq = m["요청수량"], fRecv = m["받는매장"];
-    var hit = 0, ticked = 0, mismatch = [], miss = 0, dests = {};
+    var hit = 0, mismatch = [], zero = [], miss = 0, dests = {};
     var picked = [];
 
     api.forEachNode(function (node) {
@@ -84,31 +84,45 @@
       var bc = String(d[fBc] == null ? "" : d[fBc]).trim();
       var got = data[bc];
       if (!got) { miss++; return; }
-      hit++;
-      dests[String(d[fRecv] || "")] = 1;
-
       var req = Number(d[fReq]) || 0;
       var qty = got.qty;
+
+      /* 전산이 0 을 받지 않는다 — 건드리지 않고 따로 알려 준다 */
+      if (qty < 1) { zero.push(bc + " (요청 " + req + ")"); return; }
+
+      hit++;
+      dests[String(d[fRecv] || "")] = 1;
       if (Number(d[fQty]) !== qty) node.setDataValue(fQty, qty);
 
-      if (qty === req && req > 0) { picked.push(node); ticked++; }
+      if (qty === req) picked.push(node);
       else mismatch.push(bc + " (요청 " + req + " · 실물 " + qty + ")");
     });
 
-    /* 수량이 맞는 줄만 체크한다 */
-    try { api.deselectAll(); } catch (e) {}
-    for (var i = 0; i < picked.length; i++) { try { picked[i].setSelected(true); } catch (e) {} }
-
-    return { hit: hit, ticked: ticked, mismatch: mismatch, miss: miss, dests: Object.keys(dests) };
+    /* 수량을 고치면 전산이 그 줄을 저절로 체크한다.
+       편집이 모두 끝난 뒤에 전부 풀고, 수량이 맞는 줄만 다시 체크한다. */
+    setTimeout(function () {
+      try { api.deselectAll(); } catch (e) {}
+      for (var i = 0; i < picked.length; i++) { try { picked[i].setSelected(true); } catch (e) {} }
+      var on = 0;
+      try { on = api.getSelectedNodes().length; } catch (e) {}
+      done({ hit: hit, ticked: picked.length, onscreen: on, mismatch: mismatch,
+             zero: zero, miss: miss, dests: Object.keys(dests) });
+    }, 500);
   }
 
   function reportRt(r, rt) {
     var msg = "매장RT관리에 넣었습니다.\n\n" +
       "· 처리수량을 넣은 줄 : " + r.hit + " / " + rt.rows + "\n" +
-      "· 요청과 수량이 맞아 체크한 줄 : " + r.ticked + "\n";
+      "· 수량이 맞아 체크한 줄 : " + r.ticked +
+      (r.onscreen !== r.ticked ? "  (화면 체크 " + r.onscreen + ")" : "") + "\n";
     if (r.mismatch.length) {
       msg += "· 수량이 달라 체크하지 않은 줄 : " + r.mismatch.length + "\n   " +
              r.mismatch.slice(0, 6).join("\n   ") + (r.mismatch.length > 6 ? "\n   …" : "") + "\n";
+    }
+    if (r.zero.length) {
+      msg += "· 실물이 0 이라 건드리지 않은 줄 : " + r.zero.length +
+             " (전산이 0 을 받지 않습니다. 거부로 처리하거나 빼 주세요)\n   " +
+             r.zero.slice(0, 6).join("\n   ") + (r.zero.length > 6 ? "\n   …" : "") + "\n";
     }
     if (r.miss) msg += "· 검수 자료에 없던 줄 : " + r.miss + " — 건드리지 않았습니다\n";
     if (r.dests.length > 1) msg += "\n※ 받는 매장이 " + r.dests.length + "곳 섞여 있습니다: " + r.dests.join(", ") + "\n";
@@ -270,7 +284,7 @@
   if (rt) {
     getData(function (data) {
       if (!data) return;
-      reportRt(fillRt(rt, data), rt);
+      fillRt(rt, data, function (r) { reportRt(r, rt); });
     });
     return;
   }
