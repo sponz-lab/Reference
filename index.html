@@ -4159,13 +4159,18 @@ window.__qrcode = (typeof qrcode !== "undefined") ? qrcode : (typeof module !== 
   }
 
   function mergedPacks(key){
-    var out = null;
+    /* 다른 기기가 찍은 것을 이 기기에서 빼면 내 몫이 음수로 남는다.
+       기기별 몫을 모두 더한 뒤 0 이하가 된 박스만 버린다. */
+    var sum = null;
     eachShare(function(sh){
       var p = sh.p && sh.p[key];
       if (!p) return;
-      out = out || {};
-      for (var b in p) if (p[b] > 0) out[b] = (out[b] || 0) + p[b];
+      sum = sum || {};
+      for (var b in p) sum[b] = (sum[b] || 0) + p[b];
     });
+    if (!sum) return null;
+    var out = null;
+    for (var k in sum) if (sum[k] > 0){ out = out || {}; out[k] = sum[k]; }
     return out;
   }
 
@@ -4201,19 +4206,21 @@ window.__qrcode = (typeof qrcode !== "undefined") ? qrcode : (typeof module !== 
     mine.p[key][packBox] = (mine.p[key][packBox] || 0) + 1;
   }
   function removePack(key, boxNo){
-    var p = mine.p[key];
-    if (!p) return;
+    /* 합산 기준으로 실제 들어 있는 박스를 고른다. 다른 기기가 담은 박스여도
+       내 몫에 마이너스로 적어 상쇄한다. */
+    var merged = mergedPacks(key);
+    if (!merged) return;
     var b = boxNo != null ? String(boxNo) : packBox;
-    if (!p[b]){
-      /* 잘못 찍은 것을 나중에 발견하면 그때 담던 박스는 이미 지나가 있다.
-         지금 박스에 없으면 이 품목이 실제로 들어간 박스에서 뺀다. */
-      var keys = Object.keys(p);
+    if (!merged[b]){
+      /* 지금 박스에 없으면 이 품목이 실제로 들어간 박스에서 뺀다 */
+      var keys = Object.keys(merged);
       if (!keys.length) return;
       b = keys[keys.length - 1];
     }
-    p[b]--;
-    if (p[b] <= 0) delete p[b];
-    if (!Object.keys(p).length) delete mine.p[key];
+    mine.p[key] = mine.p[key] || {};
+    mine.p[key][b] = (mine.p[key][b] || 0) - 1;
+    if (mine.p[key][b] === 0) delete mine.p[key][b];
+    if (!Object.keys(mine.p[key]).length) delete mine.p[key];
   }
 
   // 지금까지 쓰인 포장 박스 번호 (숫자 먼저, 그다음 글자 순)
@@ -4240,7 +4247,7 @@ window.__qrcode = (typeof qrcode !== "undefined") ? qrcode : (typeof module !== 
 
   function packCount(boxNo){
     var n = 0, k = String(boxNo);
-    var walk = function(arr){ for (var i = 0; i < arr.length; i++){ var ps = arr[i].packs; if (ps && ps[k]) n += ps[k]; } };
+    var walk = function(arr){ for (var i = 0; i < arr.length; i++){ var ps = arr[i].packs; if (ps && ps[k] > 0) n += ps[k]; } };
     walk(items); walk(unknown);
     return n;
   }
@@ -5891,30 +5898,32 @@ window.__qrcode = (typeof qrcode !== "undefined") ? qrcode : (typeof module !== 
      어디서 틀렸는지 찾느니 그 상자만 비우고 다시 찍는 편이 빠르다. */
   $("btn-pack-clear").addEventListener("click", function(){
     var box = String(packBox);
-    var n = 0, kinds = 0, k;
-    for (k in mine.p) if (mine.p[k][box] > 0){ n += mine.p[k][box]; kinds++; }
 
-    var otherDev = 0;
-    for (var d in peers){
-      var pp = peers[d] && peers[d].p;
-      for (var key in (pp || {})) if (pp[key][box] > 0) otherDev += pp[key][box];
+    /* 어느 기기가 담았든 이 박스 몫을 전부 턴다. 남의 자료는 고칠 수 없으므로
+       그만큼 내 몫에 마이너스로 적어 상쇄한다. 합계로 계산하므로 결과는 같다. */
+    var plan = {}, n = 0, kinds = 0;
+    var all = items.concat(unknown);
+    for (var i = 0; i < all.length; i++){
+      var key = all[i].norm || all[i].barcode;
+      var mp = mergedPacks(key);
+      var q = mp && mp[box];
+      if (q > 0){ plan[key] = q; n += q; kinds++; }
     }
 
-    if (!n && !otherDev){ alert(box + "번 박스에는 찍은 것이 없습니다."); return; }
+    if (!n){ alert(box + "번 박스에는 담긴 것이 없습니다."); return; }
 
-    var msg = box + "번 박스를 비웁니다.\n\n" +
-              "이 기기에서 찍은 " + kinds + "품목 " + n + "개가 0 으로 돌아갑니다.\n" +
-              "다른 박스와 다른 품목은 그대로입니다.\n";
-    if (otherDev) msg += "\n※ 다른 기기에서 찍은 " + otherDev + "개는 지워지지 않습니다.\n   그 기기에서도 같이 비워 주세요.\n";
-    msg += "\n되돌릴 수 없습니다. 진행할까요?";
-    if (!confirm(msg)) return;
+    if (!confirm(box + "번 박스를 비웁니다.\n\n" +
+                 kinds + "품목 " + n + "개가 0 으로 돌아갑니다. (다른 기기가 담은 것 포함)\n" +
+                 "다른 박스와 다른 품목은 그대로입니다.\n\n" +
+                 "되돌릴 수 없습니다. 진행할까요?")) return;
 
-    for (k in mine.p){
-      var q = mine.p[k][box];
-      if (!q) continue;
-      mine.c[k] = (mine.c[k] || 0) - q;
-      if (mine.c[k] <= 0) delete mine.c[k];
-      delete mine.p[k][box];
+    for (var k in plan){
+      var q2 = plan[k];
+      mine.c[k] = (mine.c[k] || 0) - q2;
+      if (mine.c[k] === 0) delete mine.c[k];
+      mine.p[k] = mine.p[k] || {};
+      mine.p[k][box] = (mine.p[k][box] || 0) - q2;
+      if (mine.p[k][box] === 0) delete mine.p[k][box];
       if (!Object.keys(mine.p[k]).length) delete mine.p[k];
     }
     recompute();
@@ -5989,13 +5998,16 @@ window.__qrcode = (typeof qrcode !== "undefined") ? qrcode : (typeof module !== 
     else if (m){
       var it = index[m];
       if (it){
-        if (!mine.c[m]){            // 내가 찍은 몫이 없으면 뺄 것이 없다
-          alert("이 품목은 다른 기기에서 찍은 수량입니다. 그 기기에서 빼 주세요.");
+        /* 다른 기기가 찍은 것도 여기서 뺄 수 있어야 한다.
+           남의 자료를 고칠 수는 없으니 내 몫에 마이너스로 적어 상쇄한다.
+           합계로 계산하므로 결과는 같다. */
+        if (totalOf("c", m) <= 0){
+          alert("이 품목은 찍힌 수량이 없습니다.");
           return;
         }
-        mine.c[m]--;
-        if (mine.c[m] <= 0) delete mine.c[m];
-        removePack(m, packBox);      // 지금 담는 박스에서 한 개 뺀다
+        mine.c[m] = (mine.c[m] || 0) - 1;
+        if (mine.c[m] === 0) delete mine.c[m];
+        removePack(m, packBox);      // 실제로 들어간 박스에서 한 개 뺀다
         recompute();
         render();
         scheduleSave();
