@@ -3907,12 +3907,21 @@ window.__qrcode = (typeof qrcode !== "undefined") ? qrcode : (typeof module !== 
     var cfg = window.INBOUND_CONFIG && window.INBOUND_CONFIG.firebase;
     if (!cfg || !cfg.projectId) return Promise.resolve(null);
     var base = "https://www.gstatic.com/firebasejs/" + FB_VER + "/";
+    var siteKey = window.INBOUND_CONFIG.appCheckKey || "";
     return loadScript(base + "firebase-app-compat.js")
       .then(function(){ return loadScript(base + "firebase-auth-compat.js"); })
       .then(function(){ return loadScript(base + "firebase-firestore-compat.js"); })
+      .then(function(){ return siteKey ? loadScript(base + "firebase-app-check-compat.js") : true; })
       .then(function(){
         if (!window.firebase) return null;
         if (!firebase.apps.length) firebase.initializeApp(cfg);
+        /* 앱 체크 — 이 주소에서 연 화면만 서버를 쓰게 한다.
+           설정 파일의 키를 베껴 다른 페이지에서 접속하는 것을 막는다. */
+        if (siteKey && firebase.appCheck){
+          try {
+            firebase.appCheck().activate(new firebase.appCheck.ReCaptchaV3Provider(siteKey), true);
+          } catch (e) {}
+        }
         return firebase.auth().signInAnonymously().then(function(){
           return firebase.firestore();
         });
