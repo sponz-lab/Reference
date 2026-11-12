@@ -76,7 +76,8 @@
   function fillRt(rt, data, done) {
     var m = rt.m, api = rt.g.api;
     var fBc = m["바코드"], fQty = m["처리수량"], fReq = m["요청수량"], fRecv = m["받는매장"];
-    var hit = 0, mismatch = [], zero = [], miss = 0, dests = {};
+    var fMemo = m["접수메모"];
+    var hit = 0, mismatch = [], zero = [], miss = 0, dests = {}, noted = 0;
     var picked = [];
 
     api.forEachNode(function (node) {
@@ -94,6 +95,11 @@
       dests[String(d[fRecv] || "")] = 1;
       if (Number(d[fQty]) !== qty) node.setDataValue(fQty, qty);
 
+      /* 검수에서 적어 둔 사유는 접수메모에 그대로 넣는다 */
+      if (fMemo && got.note && String(d[fMemo] || "").trim() !== got.note) {
+        node.setDataValue(fMemo, got.note); noted++;
+      }
+
       if (qty === req) picked.push(node);
       else mismatch.push(bc + " (요청 " + req + " · 실물 " + qty + ")");
     });
@@ -106,7 +112,7 @@
       var on = 0;
       try { on = api.getSelectedNodes().length; } catch (e) {}
       done({ hit: hit, ticked: picked.length, onscreen: on, mismatch: mismatch,
-             zero: zero, miss: miss, dests: Object.keys(dests) });
+             zero: zero, miss: miss, noted: noted, dests: Object.keys(dests) });
     }, 500);
   }
 
@@ -124,6 +130,7 @@
              " (전산이 0 을 받지 않습니다. 거부로 처리하거나 빼 주세요)\n   " +
              r.zero.slice(0, 6).join("\n   ") + (r.zero.length > 6 ? "\n   …" : "") + "\n";
     }
+    if (r.noted) msg += "· 검수에서 적은 사유를 접수메모에 넣은 줄 : " + r.noted + "\n";
     if (r.miss) msg += "· 검수 자료에 없던 줄 : " + r.miss + " — 건드리지 않았습니다\n";
     if (r.dests.length > 1) msg += "\n※ 받는 매장이 " + r.dests.length + "곳 섞여 있습니다: " + r.dests.join(", ") + "\n";
     msg += "\n보내지 않았습니다.\n체크된 줄을 확인하신 뒤 「처리」를 직접 눌러 주세요.";
@@ -191,7 +198,7 @@
       if (!bc) continue;
       var q = parseInt(String(p[1] || "").replace(/[^0-9-]/g, ""), 10);
       if (isNaN(q)) q = 0;
-      out[bc] = { qty: q, box: (p[2] || "").trim() };
+      out[bc] = { qty: q, box: (p[2] || "").trim(), note: (p[3] || "").trim() };
       n++;
     }
     return n ? out : null;
@@ -242,7 +249,7 @@
     var fBc = m["바코드"], fBox = m["박스번호"], fQty = m["처리수량"],
         fReq = m["요청수량"], fWhy = m["반품거부사유"], fMemo = m["반품거부메모"];
 
-    var hit = 0, miss = [], short = 0, over = [], same = 0;
+    var hit = 0, miss = [], short = 0, over = [], same = 0, noted = 0;
     api.forEachNode(function (node) {
       var d = node.data || {};
       var bc = String(d[fBc] == null ? "" : d[fBc]).trim();
@@ -260,16 +267,21 @@
       if (qty < req) {
         short++;
         if (fWhy && !d[fWhy]) node.setDataValue(fWhy, REJECT);
-        if (fMemo && !String(d[fMemo] || "").trim()) node.setDataValue(fMemo, MEMO);
+        /* 검수하면서 적어 둔 사유가 있으면 그것을 쓴다 (전시품 등) */
+        var memo = got.note || MEMO;
+        if (fMemo && String(d[fMemo] || "").trim() !== memo) node.setDataValue(fMemo, memo);
+        if (got.note) noted++;
       }
     });
-    return { hit: hit, miss: miss, short: short, over: over, same: same };
+    return { hit: hit, miss: miss, short: short, over: over, same: same, noted: noted };
   }
 
   function report(r, dg) {
     var msg = "전산에 넣었습니다.\n\n" +
       "· 입력한 줄 : " + r.hit + " / " + dg.rows + "\n" +
-      "· 모자란 줄 : " + r.short + " (사유 「" + REJECT + "」 · 메모 「" + MEMO + "」 자동 입력)\n";
+      "· 모자란 줄 : " + r.short + " (사유 「" + REJECT + "」 자동 입력)\n" +
+      (r.noted ? "· 검수에서 적은 사유를 메모에 넣은 줄 : " + r.noted + "\n" : "") +
+      (r.short > r.noted ? "· 사유를 적지 않아 메모를 「" + MEMO + "」로 둔 줄 : " + (r.short - r.noted) + "\n" : "");
     if (r.miss.length) msg += "· 검수 자료에 없던 줄 : " + r.miss.length + "개 — 건드리지 않았습니다\n";
     if (r.over.length) {
       msg += "\n※ 요청보다 많이 찍힌 품목은 요청 수량으로 맞췄습니다 (" + r.over.length + "건)\n   " +

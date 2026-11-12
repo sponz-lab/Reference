@@ -4825,7 +4825,8 @@ window.__qrcode = (typeof qrcode !== "undefined") ? qrcode : (typeof module !== 
         });
         boxes = keys.join(",");
       }
-      out.push(it.barcode + "\t" + qty + "\t" + boxes);
+      /* 네 번째 칸은 사유 — 전산의 반품거부메모(RT 는 접수메모)에 그대로 들어간다 */
+      out.push(it.barcode + "\t" + qty + "\t" + boxes + "\t" + (it.note || ""));
     }
     return out.join("\n");
   }
@@ -4834,8 +4835,13 @@ window.__qrcode = (typeof qrcode !== "undefined") ? qrcode : (typeof module !== 
     var text = erpText();
     var n = items.length;
     var done = function(ok){
-      alert(n + "품목을 복사했습니다." + (ok ? "" : "\n(복사가 안 되었으면 다시 눌러 주세요)") +
-            "\n\n전산의 매장반품관리 화면에서 북마크\n「반품 입력하기」를 누르세요.");
+      var noted = 0;
+      for (var i = 0; i < items.length; i++) if (items[i].note) noted++;
+      alert(n + "품목을 복사했습니다." +
+            (noted ? "\n사유를 적은 " + noted + "품목은 전산 메모에 그대로 들어갑니다." : "") +
+            (ok ? "" : "\n(복사가 안 되었으면 다시 눌러 주세요)") +
+            "\n\n전산 화면에서 북마크 「반품 입력하기」를 누르세요.\n" +
+            "· 물류 반품 — 매장반품관리 목록\n· 매장간 이동 — 매장RT관리 목록");
     };
     if (navigator.clipboard && navigator.clipboard.writeText){
       var settled = false;
