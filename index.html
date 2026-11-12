@@ -4316,8 +4316,21 @@ window.__qrcode = (typeof qrcode !== "undefined") ? qrcode : (typeof module !== 
     return guess.toUpperCase();
   }
 
+  /* 스캐너가 바코드가 아닌 것을 보낼 때가 있다 — "BATTERY: 100%" 같은 상태 메시지다.
+     바코드에 없는 글자(빈칸·콜론·퍼센트 등)가 섞여 있으면 수량으로 세지 않는다. */
+  function looksJunk(v){
+    return /[\s:%=<>]/.test(v) || /^[A-Za-z ]+$/.test(v);
+  }
+
   function handleScan(raw){
     raw = fixHangul(String(raw == null ? "" : raw));
+    var trimmed0 = norm(raw);
+    if (trimmed0 && looksJunk(trimmed0)){
+      beep("bad");
+      slab("over", "읽기 오류", trimmed0,
+           "바코드가 아닙니다. 스캐너가 보낸 메시지로 보여 세지 않았습니다.", "", "");
+      return;
+    }
     if (tryJoinCode(raw)) return;      // 참여 QR 은 블루투스 스캐너로 찍어도 들어간다
     var n = norm(raw);
     if (!n) return;
@@ -4627,10 +4640,9 @@ window.__qrcode = (typeof qrcode !== "undefined") ? qrcode : (typeof module !== 
                   qty:q, unknown:false, other:other.join(", ")});
       }
     }
-    for (var u = 0; u < unknown.length; u++){
-      var q2 = unknown[u].packs && unknown[u].packs[k];
-      if (q2 > 0) out.push({barcode:unknown[u].barcode, name:unknown[u].name || "", req:0, qty:q2, unknown:true});
-    }
+    /* 요청 목록에 없는 바코드는 넣지 않는다. 대부분 스캐너 오독이거나
+       스캐너가 뱉은 상태 메시지라, 상자에 동봉하는 종이에 들어가면 안 된다.
+       화면의 '이상' 탭에는 그대로 남아 있으니 매장에서 확인할 수 있다. */
     out.sort(function(a, b){ return cmpText(a.name, b.name) || cmpText(a.barcode, b.barcode); });
     return out;
   }
@@ -4718,22 +4730,16 @@ window.__qrcode = (typeof qrcode !== "undefined") ? qrcode : (typeof module !== 
               "<td class='n'>" + (d > 0 ? "+" + d : d) + "</td>" +
               "<td>" + esc(where.join(", ") || "—") + "</td></tr>";
     }
-    for (var u = 0; u < unknown.length; u++){
-      var uw = [];
-      if (unknown[u].packs) for (var k2 in unknown[u].packs) if (unknown[u].packs[k2] > 0) uw.push(k2 + "번 " + unknown[u].packs[k2] + "개");
-      act += unknown[u].count;
-      rows += "<tr class='warnrow'><td>(요청 목록에 없음)</td><td class='bc'>" + esc(unknown[u].barcode) + "</td>" +
-              "<td class='n'>0</td><td class='n'>" + unknown[u].count + "</td>" +
-              "<td class='n'>+" + unknown[u].count + "</td><td>" + esc(uw.join(", ") || "—") + "</td></tr>";
-    }
+    /* 요청 목록에 없는 바코드는 리포트에 싣지 않는다 (아래 머리글에 건수만 적는다) */
     var W = rptWords();
     return "<div class='rbox'>" + rptHead() +
       "<h3>" + W.sumTitle + "</h3>" +
       (mode === "transfer" && destStore
          ? "<div class='rdest'>받는 매장 · <b>" + esc(destStore) + "</b></div>" : "") +
       "<div class='rmeta'>출력 " + esc(today()) + " · 포장 " + boxes.length + "박스 · 요청 " + req + "개 / 실물 " + act + "개" +
-      (shortN ? " · 부족 " + shortN + "품목" : "") + (overN || unknown.length ? " · 초과·미등록 " + (overN + unknown.length) + "품목" : "") +
-      (req === act && !unknown.length ? " · 전량 일치" : "") +
+      (shortN ? " · 부족 " + shortN + "품목" : "") + (overN ? " · 초과 " + overN + "품목" : "") +
+      (unknown.length ? " · 요청에 없는 바코드 " + unknown.length + "건 제외" : "") +
+      (req === act && !overN && !shortN ? " · 전량 일치" : "") +
       "<br>차이 = 실물 − 요청 (음수면 부족, 양수면 초과)</div>" +
       "<table><thead><tr><th>상품명</th><th>바코드</th><th class='n'>요청</th><th class='n'>실물</th><th class='n'>차이</th><th>담은 박스</th></tr></thead>" +
       "<tbody>" + (rows || "<tr><td colspan='6'>품목이 없습니다</td></tr>") + "</tbody></table>" +
