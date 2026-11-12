@@ -213,6 +213,70 @@
            "\n\n화면의 열 이름: " + heads.slice(0, 40).join(", ");
   }
 
+  /* ───────── 매장간 이동(매장RT관리) ─────────
+     이 화면은 목록 자체에 제품이 한 줄씩 들어 있다. 다만 같은 기간에
+     받는 매장이 여럿 섞여 나오므로, 받는 매장별로 묶어서 고르게 한다.
+     화면에서 걸러 둔 조건(구분·상태·기간)은 그대로 따른다. */
+  function rtGrid() {
+    var gs = agGrids();
+    for (var i = 0; i < gs.length; i++) {
+      var map = agColumns(gs[i]);
+      var fRecv = pick(map, /^받는\s*매장$/), fBc = pick(map, HEAD.bc);
+      var fQty = pick(map, /^(요청수량|이동요청수량)$/);
+      if (!fRecv || !fBc || !fQty) continue;
+      return { g: gs[i], map: map, recv: fRecv, bc: fBc, qty: fQty,
+               send: pick(map, /^보내는\s*매장$/), nm: pick(map, HEAD.nm),
+               doc: pick(map, /^전표\s*번호$/) };
+    }
+    return null;
+  }
+
+  function fromRt() {
+    var rt = rtGrid();
+    if (!rt) return null;
+
+    /* 화면에 보이는(걸러진) 줄만 받는 매장별로 묶는다 */
+    var groups = {}, order = [];
+    var walk = rt.g.api.forEachNodeAfterFilterAndSort ? "forEachNodeAfterFilterAndSort" : "forEachNode";
+    rt.g.api[walk](function (node) {
+      if (!node || node.group || !node.data) return;
+      var d = node.data;
+      var bc = String(d[rt.bc] == null ? "" : d[rt.bc]).trim();
+      if (!bc) return;
+      var to = String(d[rt.recv] == null ? "" : d[rt.recv]).trim() || "(받는 매장 없음)";
+      if (!groups[to]) { groups[to] = { lines: [], qty: 0, docs: {}, from: "" }; order.push(to); }
+      var q = parseInt(String(d[rt.qty] == null ? "" : d[rt.qty]).replace(/[^0-9.\-]/g, ""), 10);
+      if (isNaN(q) || q <= 0) q = 1;
+      var nm = rt.nm ? String(d[rt.nm] == null ? "" : d[rt.nm]).replace(/\s+/g, " ").trim() : "";
+      groups[to].lines.push(bc + "\t" + q + (nm ? "\t" + nm : ""));
+      groups[to].qty += q;
+      if (rt.doc && d[rt.doc]) groups[to].docs[d[rt.doc]] = 1;
+      if (!groups[to].from && rt.send && d[rt.send]) groups[to].from = String(d[rt.send]).trim();
+    });
+    if (!order.length) return null;
+
+    var to = order[0];
+    if (order.length > 1) {
+      var lines = [];
+      for (var i = 0; i < order.length && i < 30; i++) {
+        var gg = groups[order[i]];
+        lines.push((i + 1) + ") " + order[i] + "  " + gg.lines.length + "품목 " + gg.qty + "개" +
+                   (gg.from ? "  (" + gg.from + " →)" : ""));
+      }
+      var ans = prompt("받는 매장이 여럿입니다. 어느 매장 것을 가져올까요?\n\n" + lines.join("\n") +
+                       "\n\n한 번에 한 매장씩 담아야 상자를 섞지 않습니다.", "1");
+      if (ans === null) return { cancelled: true };
+      var k = parseInt(ans, 10);
+      if (!(k >= 1 && k <= order.length)) return { cancelled: true };
+      to = order[k - 1];
+    }
+
+    var g = groups[to];
+    var docs = Object.keys(g.docs).sort(function (a, b) { return (parseFloat(a) || 0) - (parseFloat(b) || 0); });
+    var code = docs.length ? "RT" + (docs.length <= 6 ? docs.join("-") : docs[0] + "-" + docs[docs.length - 1] + "x" + docs.length) : "";
+    return { lines: g.lines, code: code, dest: to, mode: "transfer", how: "rt" };
+  }
+
   /* ───────── 반품: 상세가 별도 창으로 열리는 화면 ─────────
      매장반품관리의 목록에는 반품코드만 있고 제품 리스트는
      window.open 으로 뜨는 다른 창에 들어 있다. 그 창은 주소창도
@@ -320,6 +384,11 @@
   var text = "", code = "", store = findStore(), got = null, appWin = null;
 
   function start() {
+    /* 매장RT관리는 목록에 제품이 들어 있으므로 먼저 본다 */
+    var rt = fromRt();
+    if (rt && rt.cancelled) return;
+    if (rt) { got = rt; finish(); return; }
+
     got = fromAg() || fromTable();
     if (got) { finish(); return; }
 
@@ -372,7 +441,8 @@
   }
 
   function openApp() {
-    var payload = JSON.stringify({ code: code, text: text, store: store });
+    var payload = JSON.stringify({ code: code, text: text, store: store,
+                                   dest: got.dest || "", mode: got.mode || "" });
     var packed = "";
     try { packed = btoa(unescape(encodeURIComponent(payload))); } catch (e) { packed = ""; }
 
@@ -402,6 +472,7 @@
     if (APP.indexOf("__APP") !== 0) { openApp(); return; }
     alert(got.lines.length + "줄을 가져왔습니다."
       + (store ? "\n매장: " + (store.name || store.code) + " (" + store.code + ")" : "")
+      + (got.dest ? "\n받는 매장: " + got.dest : "")
       + (code ? "\n번호: " + code : "")
       + "\n\n검수 프로그램에 붙여넣기 하세요.");
   }

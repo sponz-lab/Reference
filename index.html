@@ -269,6 +269,7 @@
   .rbox .rhead{font-size:13px;color:var(--muted);margin-bottom:4px;font-weight:700}
   .rbox h3{margin:0 0 2px;font-size:19px}
   .rbox .rmeta{color:var(--muted);font-size:13px;margin-bottom:10px}
+  .rbox .rdest{font-size:17px;margin:2px 0 8px;padding:7px 11px;border:2px solid #000;border-radius:7px;display:inline-block}
   .rbox table{font-size:13.5px}
   .rbox th,.rbox td{padding:6px 9px;white-space:normal;vertical-align:top}
   .rbox th{white-space:nowrap}
@@ -535,8 +536,12 @@
           <span>물류센터에서 매장으로 오는 입고 전반. 재고 엑셀을 연결하면 검수하면서 넣을 박스까지 표시합니다.</span>
         </button>
         <button class="choice" id="mode-return" type="button" aria-pressed="false">
-          <b>반품 출고</b>
-          <span>리스트를 읽는 즉시 제품별 박스 위치를 뽑아 줍니다. 검수 방식은 물류입고와 같습니다.</span>
+          <b>물류 반품</b>
+          <span>물류센터로 돌려보내는 반품. 리스트를 읽는 즉시 제품별 박스 위치를 뽑아 줍니다.</span>
+        </button>
+        <button class="choice" id="mode-transfer" type="button" aria-pressed="false">
+          <b>매장간 이동</b>
+          <span>다른 매장으로 보내는 RT. 받는 매장별로 나눠 담고, 상자마다 받는 매장이 적힌 리스트를 동봉합니다.</span>
         </button>
       </div>
     </div>
@@ -680,7 +685,7 @@
       <button class="btn small" id="btn-pack-next" type="button" title="다음 박스 — 새 상자를 포장할 때 누르세요">다음 박스 ▶</button>
       <span class="pstat" id="pack-stat"></span>
       <button class="btn small" id="btn-pack-clear" type="button" title="이 박스에 찍은 것을 모두 지우고 처음부터 다시 검수합니다">이 박스 비우기</button>
-      <button class="btn primary small" id="btn-report" type="button" style="margin-left:auto">박스별 반품 리포트</button>
+      <button class="btn primary small" id="btn-report" type="button" style="margin-left:auto">박스별 리포트</button>
     </div>
 
     <div class="stats">
@@ -3099,7 +3104,8 @@ window.__qrcode = (typeof qrcode !== "undefined") ? qrcode : (typeof module !== 
   var peers = {};                      // 기기ID -> {c,u,p,name,at}
   var sortCol = "";        // 정렬 기준 열 ("" 이면 기본 순서)
   var sortDir = 0;         // 0 기본 / 1 오름차순 / 2 내림차순
-  var mode = "";           // "resupply" 물류입고 / "return" 반품 출고
+  var mode = "";           // "resupply" 물류입고 / "return" 물류 반품 / "transfer" 매장간 이동
+  var destStore = "";      // 매장간 이동에서 받는 매장 이름
   var LOC_KEY = "inbound-check:locations";
   var KEYLEN_KEY = "inbound-check:keylen";
   var THEME_KEY = "inbound-check:theme";
@@ -3372,7 +3378,7 @@ window.__qrcode = (typeof qrcode !== "undefined") ? qrcode : (typeof module !== 
     packBox = "1";
     $("report-panel").hidden = true;
     $("qr-panel").hidden = true;
-    if (mode === "return"){ sortCol = "box"; sortDir = 1; }
+    if (isPacking()){ sortCol = "box"; sortDir = 1; }
     $("brief-work").innerHTML = briefHtml(analyzeList(items));
     $("brief-work").hidden = false;
     $("stage-setup").hidden = true;
@@ -4000,7 +4006,7 @@ window.__qrcode = (typeof qrcode !== "undefined") ? qrcode : (typeof module !== 
       slim.push(row);
     }
     return share.db.doc(sessPath(code)).set({
-      mode: mode, code: String(code), items: slim, at: Date.now(),
+      mode: mode, dest: destStore, code: String(code), items: slim, at: Date.now(),
       storeCode: storeKey(), storeName: (myStore && myStore.name) || ""
     }).then(function(){ return true; })["catch"](function(){ return false; });
   }
@@ -4053,6 +4059,7 @@ window.__qrcode = (typeof qrcode !== "undefined") ? qrcode : (typeof module !== 
                      boxShared: r.x || "" };
           items.push(it); index[it.norm] = it;
         }
+        if (d.dest) destStore = String(d.dest);
         if (d.mode) setMode(d.mode);
         recompute();
         if (!$("stage-work").hidden) render();
@@ -4148,7 +4155,7 @@ window.__qrcode = (typeof qrcode !== "undefined") ? qrcode : (typeof module !== 
   }
 
   /* ---------- 반품 포장 박스 ---------- */
-  function isPacking(){ return mode === "return"; }
+  function isPacking(){ return mode === "return" || mode === "transfer"; }
 
   function packKey(it, rawUnknown){ return rawUnknown != null ? "?" + rawUnknown : it.norm; }
 
@@ -4585,9 +4592,22 @@ window.__qrcode = (typeof qrcode !== "undefined") ? qrcode : (typeof module !== 
     return out;
   }
 
+  /* 물류 반품과 매장간 이동은 종이의 쓰임이 다르다 — 말을 바꿔 준다 */
+  function rptWords(){
+    if (mode === "transfer") return {
+      kind:"매장간 이동", listTitle:"이동 포장 리스트", sumTitle:"이동 대조 요약",
+      reqCol:"이동 요청", actCol:"실물 이동", recv:"받는 매장 확인", note:"실물 이동 = 이 상자에 담긴 수량"
+    };
+    return {
+      kind:"물류 반품", listTitle:"반품 포장 리스트", sumTitle:"반품 대조 요약",
+      reqCol:"반품 요청", actCol:"실물 반품", recv:"물류 확인", note:"실물 반품 = 이 상자에 담긴 수량"
+    };
+  }
+
   function boxTable(rows, boxNo){
+    var W = rptWords();
     var html = "<table><thead><tr><th class='n'>No</th><th>상품명</th><th>바코드</th>" +
-               "<th class='n'>반품 요청</th><th class='n'>실물 반품</th><th class='n'>차이</th></tr></thead><tbody>";
+               "<th class='n'>" + W.reqCol + "</th><th class='n'>" + W.actCol + "</th><th class='n'>차이</th></tr></thead><tbody>";
     var sum = 0, dsum = 0;
     for (var i = 0; i < rows.length; i++){
       var r = rows[i];
@@ -4617,13 +4637,16 @@ window.__qrcode = (typeof qrcode !== "undefined") ? qrcode : (typeof module !== 
     for (var b = 0; b < boxes.length; b++){
       var rows = boxContents(boxes[b]);
       var t = boxTable(rows, boxes[b]);
+      var W = rptWords();
       html += "<div class='rbox'>" + rptHead() +
-              "<h3>반품 포장 리스트 — " + esc(boxes[b]) + "번 박스</h3>" +
+              "<h3>" + W.listTitle + " — " + esc(boxes[b]) + "번 박스</h3>" +
+              (mode === "transfer" && destStore
+                 ? "<div class='rdest'>받는 매장 · <b>" + esc(destStore) + "</b></div>" : "") +
               "<div class='rmeta'>" + (b+1) + " / " + boxes.length + "박스 · 출력 " + esc(today()) +
               " · 이 박스 " + rows.length + "품목 " + t.sum + "개" +
-              "<br>반품 요청 = 전체 요청 수량 · 실물 반품 = 이 상자에 담긴 수량 · 차이 = 실물 − 요청(음수면 부족)</div>" +
+              "<br>" + W.reqCol + " = 전체 요청 수량 · " + W.note + " · 차이 = 실물 − 요청(음수면 부족)</div>" +
               t.html +
-              "<div class='sign'><span>매장 담당 ______________</span><span>물류 확인 ______________</span></div>" +
+              "<div class='sign'><span>매장 담당 ______________</span><span>" + W.recv + " ______________</span></div>" +
               "</div>";
     }
 
@@ -4631,7 +4654,7 @@ window.__qrcode = (typeof qrcode !== "undefined") ? qrcode : (typeof module !== 
     html += summaryBlock(boxes);
 
     if (!boxes.length){
-      html = "<div class='empty'>아직 포장한 제품이 없습니다. 포장 박스 번호를 정하고 제품을 스캔하세요.</div>" + summaryBlock(boxes);
+      html = "<div class='empty'>아직 담은 제품이 없습니다. 포장 박스 번호를 정하고 제품을 스캔하세요.</div>" + summaryBlock(boxes);
     }
     $("report").innerHTML = html;
   }
@@ -4660,15 +4683,18 @@ window.__qrcode = (typeof qrcode !== "undefined") ? qrcode : (typeof module !== 
               "<td class='n'>0</td><td class='n'>" + unknown[u].count + "</td>" +
               "<td class='n'>+" + unknown[u].count + "</td><td>" + esc(uw.join(", ") || "—") + "</td></tr>";
     }
+    var W = rptWords();
     return "<div class='rbox'>" + rptHead() +
-      "<h3>반품 대조 요약</h3>" +
+      "<h3>" + W.sumTitle + "</h3>" +
+      (mode === "transfer" && destStore
+         ? "<div class='rdest'>받는 매장 · <b>" + esc(destStore) + "</b></div>" : "") +
       "<div class='rmeta'>출력 " + esc(today()) + " · 포장 " + boxes.length + "박스 · 요청 " + req + "개 / 실물 " + act + "개" +
       (shortN ? " · 부족 " + shortN + "품목" : "") + (overN || unknown.length ? " · 초과·미등록 " + (overN + unknown.length) + "품목" : "") +
       (req === act && !unknown.length ? " · 전량 일치" : "") +
       "<br>차이 = 실물 − 요청 (음수면 부족, 양수면 초과)</div>" +
       "<table><thead><tr><th>상품명</th><th>바코드</th><th class='n'>요청</th><th class='n'>실물</th><th class='n'>차이</th><th>담은 박스</th></tr></thead>" +
       "<tbody>" + (rows || "<tr><td colspan='6'>품목이 없습니다</td></tr>") + "</tbody></table>" +
-      "<div class='sign'><span>매장 담당 ______________</span><span>물류 확인 ______________</span></div>" +
+      "<div class='sign'><span>매장 담당 ______________</span><span>" + W.recv + " ______________</span></div>" +
       "</div>";
   }
 
@@ -4734,7 +4760,7 @@ window.__qrcode = (typeof qrcode !== "undefined") ? qrcode : (typeof module !== 
       var it = items[j], sc = it.scanned + it.over;
       if (sc < it.expected) out.push(["(미포장)", it.name || "", it.barcode, it.expected, sc, sc - it.expected, "아직 담지 않음"]);
     }
-    saveCsv(out, (mode === "return" ? "반품포장리스트_" : "포장리스트_"));
+    saveCsv(out, (mode === "return" ? "반품포장리스트_" : mode === "transfer" ? "매장이동포장리스트_" : "포장리스트_"));
   }
 
   function saveCsv(rowsOut, prefix){
@@ -4773,7 +4799,7 @@ window.__qrcode = (typeof qrcode !== "undefined") ? qrcode : (typeof module !== 
       if (hasLoc) r2.push("");
       rowsOut.push(r2);
     }
-    saveCsv(rowsOut, (mode === "return" ? "반품출고_" : "물류입고_") + "입고검수_");
+    saveCsv(rowsOut, (mode === "return" ? "물류반품_" : mode === "transfer" ? "매장간이동_" : "물류입고_") + "검수_");
   }
 
   /* ---------- 재고 자료 연결 · 자동 감시 ---------- */
@@ -4840,7 +4866,7 @@ window.__qrcode = (typeof qrcode !== "undefined") ? qrcode : (typeof module !== 
       store.set(META_KEY, JSON.stringify({name:locFileName, mod:locFileMod}));
     }
     locSyncAt = Date.now();
-    if (mode === "return" && !$("stage-setup").hidden) renderPreviewBox(buildItems());
+    if (isPacking() && !$("stage-setup").hidden) renderPreviewBox(buildItems());
     if (!$("stage-work").hidden){
       render();
       updateSyncBar(true);
@@ -5183,7 +5209,9 @@ window.__qrcode = (typeof qrcode !== "undefined") ? qrcode : (typeof module !== 
       saveStore(payload.store.code, payload.store.name || "");
       $("storewrap").hidden = true;
     }
-    if (!mode) setMode(payload.code && /_\d{8}_/.test(payload.code) ? "return" : "resupply");
+    if (payload.dest) destStore = String(payload.dest);
+    if (payload.mode) setMode(payload.mode);
+    else if (!mode) setMode(payload.code && /_\d{8}_/.test(payload.code) ? "return" : "resupply");
     if (payload.code){
       $("code-input").value = payload.code;
       sessionCode = payload.code;
@@ -5211,7 +5239,7 @@ window.__qrcode = (typeof qrcode !== "undefined") ? qrcode : (typeof module !== 
       var it = items[i];
       slim.push({b:it.barcode, n:it.norm, m:it.name || "", e:it.expected, t:it.lastAt || 0});
     }
-    return {v:3, id:sessionId, mode:mode, at:Date.now(), sortCol:sortCol, sortDir:sortDir, packBox:packBox,
+    return {v:3, id:sessionId, mode:mode, dest:destStore, at:Date.now(), sortCol:sortCol, sortDir:sortDir, packBox:packBox,
             code:sessionCode, items:slim, mine:mine, log:log.slice(0, 60)};
   }
 
@@ -5252,7 +5280,7 @@ window.__qrcode = (typeof qrcode !== "undefined") ? qrcode : (typeof module !== 
   }
 
   function modeLabel(m){
-    return m === "return" ? "반품 출고" : "물류입고";
+    return m === "return" ? "물류 반품" : (m === "transfer" ? "매장간 이동" : "물류입고");
   }
 
   function sessLine(e){
@@ -5297,6 +5325,7 @@ window.__qrcode = (typeof qrcode !== "undefined") ? qrcode : (typeof module !== 
   }
 
   function resumeSession(d){
+    destStore = d.dest || "";
     setMode(d.mode);
     sessionId = d.id || String(d.at || Date.now());
     items = []; index = {};
@@ -5574,18 +5603,22 @@ window.__qrcode = (typeof qrcode !== "undefined") ? qrcode : (typeof module !== 
   function usesBox(){ return true; }
 
   function setMode(m){
-    if (m !== "return") m = "resupply";
+    if (m !== "return" && m !== "transfer") m = "resupply";
     mode = m;
     $("mode-resupply").setAttribute("aria-pressed", String(m === "resupply"));
     $("mode-return").setAttribute("aria-pressed", String(m === "return"));
+    $("mode-transfer").setAttribute("aria-pressed", String(m === "transfer"));
     $("loc-panel").hidden = false;
     $("paste-panel").hidden = false;
-    $("code-input").placeholder = m === "return" ? "예) BSDR0001_20260923_1754" : "예) 8577";
+    $("code-input").placeholder =
+      m === "return"   ? "예) BSDR0001_20260923_1754" :
+      m === "transfer" ? "예) RT58208-58448" : "예) 8577";
     $("modebadge").hidden = false;
-    $("modebadge").textContent = modeLabel(m);
-    $("topsub").textContent = m === "return"
-      ? "리스트를 읽는 즉시 박스 위치를 뽑아 줍니다"
-      : "검수하면서 넣을 박스번호까지 표시합니다";
+    $("modebadge").textContent = modeLabel(m) + (m === "transfer" && destStore ? " · " + destStore : "");
+    $("topsub").textContent =
+      m === "return"   ? "리스트를 읽는 즉시 박스 위치를 뽑아 줍니다" :
+      m === "transfer" ? "받는 매장으로 보낼 제품을 상자에 나눠 담습니다" :
+                         "검수하면서 넣을 박스번호까지 표시합니다";
     updateMapSummary();
     updatePackBar();
     showStatus();
@@ -5593,6 +5626,7 @@ window.__qrcode = (typeof qrcode !== "undefined") ? qrcode : (typeof module !== 
   }
   $("mode-resupply").addEventListener("click", function(){ setMode("resupply"); });
   $("mode-return").addEventListener("click", function(){ setMode("return"); });
+  $("mode-transfer").addEventListener("click", function(){ setMode("transfer"); });
 
   /* ---------- 이벤트 ---------- */
   $("preview-table").addEventListener("click", onCopyClick);
