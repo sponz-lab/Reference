@@ -60,6 +60,62 @@
     return null;
   }
 
+  /* 매장RT관리 — 목록에 제품이 한 줄씩 있고, 맨 왼쪽 네모는 ag-Grid 기본 선택이다 */
+  function rtGrid() {
+    var gs = agGrids();
+    for (var i = 0; i < gs.length; i++) {
+      var m = colMap(gs[i]);
+      if (m["바코드"] && m["처리수량"] && m["요청수량"] && m["받는매장"]) {
+        var n = 0; gs[i].api.forEachNode(function () { n++; });
+        if (n) return { g: gs[i], m: m, rows: n };
+      }
+    }
+    return null;
+  }
+
+  function fillRt(rt, data) {
+    var m = rt.m, api = rt.g.api;
+    var fBc = m["바코드"], fQty = m["처리수량"], fReq = m["요청수량"], fRecv = m["받는매장"];
+    var hit = 0, ticked = 0, mismatch = [], miss = 0, dests = {};
+    var picked = [];
+
+    api.forEachNode(function (node) {
+      var d = node.data || {};
+      var bc = String(d[fBc] == null ? "" : d[fBc]).trim();
+      var got = data[bc];
+      if (!got) { miss++; return; }
+      hit++;
+      dests[String(d[fRecv] || "")] = 1;
+
+      var req = Number(d[fReq]) || 0;
+      var qty = got.qty;
+      if (Number(d[fQty]) !== qty) node.setDataValue(fQty, qty);
+
+      if (qty === req && req > 0) { picked.push(node); ticked++; }
+      else mismatch.push(bc + " (요청 " + req + " · 실물 " + qty + ")");
+    });
+
+    /* 수량이 맞는 줄만 체크한다 */
+    try { api.deselectAll(); } catch (e) {}
+    for (var i = 0; i < picked.length; i++) { try { picked[i].setSelected(true); } catch (e) {} }
+
+    return { hit: hit, ticked: ticked, mismatch: mismatch, miss: miss, dests: Object.keys(dests) };
+  }
+
+  function reportRt(r, rt) {
+    var msg = "매장RT관리에 넣었습니다.\n\n" +
+      "· 처리수량을 넣은 줄 : " + r.hit + " / " + rt.rows + "\n" +
+      "· 요청과 수량이 맞아 체크한 줄 : " + r.ticked + "\n";
+    if (r.mismatch.length) {
+      msg += "· 수량이 달라 체크하지 않은 줄 : " + r.mismatch.length + "\n   " +
+             r.mismatch.slice(0, 6).join("\n   ") + (r.mismatch.length > 6 ? "\n   …" : "") + "\n";
+    }
+    if (r.miss) msg += "· 검수 자료에 없던 줄 : " + r.miss + " — 건드리지 않았습니다\n";
+    if (r.dests.length > 1) msg += "\n※ 받는 매장이 " + r.dests.length + "곳 섞여 있습니다: " + r.dests.join(", ") + "\n";
+    msg += "\n보내지 않았습니다.\n체크된 줄을 확인하신 뒤 「처리」를 직접 눌러 주세요.";
+    alert(msg);
+  }
+
   /* 목록 화면이면 상세 창을 직접 연다 */
   function returnListGrid() {
     var gs = agGrids();
@@ -210,8 +266,17 @@
   }
 
   /* ───────── 실행 ───────── */
+  var rt = rtGrid();                // 매장RT관리 — 목록에서 바로 처리
+  if (rt) {
+    getData(function (data) {
+      if (!data) return;
+      reportRt(fillRt(rt, data), rt);
+    });
+    return;
+  }
+
   var here = detailGrid(window);
-  if (here) {                       // 상세 창에서 직접 눌렀을 때
+  if (here) {                       // 반품 상세 창에서 직접 눌렀을 때
     getData(function (data) {
       if (!data) return;
       report(fill(here, data), here);
@@ -221,7 +286,7 @@
 
   var rl = returnListGrid();
   if (!rl || typeof window.openDetailPopup !== "function") {
-    alert("반품 리스트 화면이 아닙니다.\n매장반품관리에서 반품을 조회한 목록 화면에서 눌러 주세요.");
+    alert("입력할 화면이 아닙니다.\n\n· 물류 반품 — 매장반품관리에서 반품을 조회한 목록 화면\n· 매장간 이동 — 매장RT관리에서 조회한 목록 화면\n\n둘 중 한 곳에서 눌러 주세요.");
     return;
   }
 

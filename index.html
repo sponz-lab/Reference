@@ -338,6 +338,16 @@
     border-top:1px solid var(--line)
   }
   .bigstart{padding:14px 28px;font-size:17px;font-weight:700;border-radius:11px;box-shadow:0 2px 0 rgba(0,0,0,.18)}
+  /* 전산에서 체크해도 되는지 한눈에 — 요청과 실물이 맞는 품목만 체크 대상이다 */
+  .matchbar{
+    display:flex;flex-wrap:wrap;gap:8px 18px;align-items:center;
+    margin:0 0 14px;padding:11px 14px;border-radius:11px;
+    border:1px solid var(--line);background:var(--card);font-size:14.5px
+  }
+  .matchbar.allok{border:2px solid var(--ok);background:var(--ok-soft)}
+  .matchbar b{font-size:18px}
+  .matchbar .mok{color:var(--ok)}
+  .matchbar .mbad{color:var(--bad)}
   .qr-panel{border:2px solid var(--ok);background:var(--ok-soft)}
   .qr-panel h2{font-size:19px}
   .qrsub{text-align:center;margin-top:10px;color:var(--muted);font-size:13.5px}
@@ -695,6 +705,7 @@
       <div class="stat bad"><b id="s-issue">0</b><span>이상 건수</span></div>
     </div>
     <div class="gauge"><i id="gauge"></i></div>
+    <div class="matchbar" id="matchbar" hidden></div>
     <div class="brief" id="brief-work" hidden></div>
     <div class="syncbar" id="syncbar" hidden></div>
     <div class="sharebar" id="sharebar" hidden>
@@ -4209,6 +4220,37 @@ window.__qrcode = (typeof qrcode !== "undefined") ? qrcode : (typeof module !== 
     return n;
   }
 
+  /* 전산에서 체크하고 「처리」를 눌러도 되는지 — 요청과 실물이 똑같은 품목만 대상이다.
+     수량이 다른 품목이 하나라도 있으면 그 자리에서 보이게 한다. */
+  function matchCounts(){
+    var same = 0, short = 0, over = 0;
+    for (var i = 0; i < items.length; i++){
+      var it = items[i], got = it.scanned + it.over;
+      if (got === it.expected) same++;
+      else if (got < it.expected) short++;
+      else over++;
+    }
+    return { same: same, short: short, over: over + unknown.length, total: items.length };
+  }
+
+  function updateMatchBar(){
+    var bar = $("matchbar");
+    if (!isPacking() || $("stage-work").hidden || !items.length){ bar.hidden = true; return; }
+    var m = matchCounts();
+    var clean = !m.short && !m.over;
+    bar.hidden = false;
+    bar.className = "matchbar" + (clean ? " allok" : "");
+    bar.innerHTML =
+      "<span>요청 수량과 <b class='mok'>" + m.same + "</b>품목 일치</span>" +
+      (m.short ? "<span class='mbad'>모자람 <b>" + m.short + "</b>품목</span>" : "") +
+      (m.over  ? "<span class='mbad'>초과·미등록 <b>" + m.over + "</b>품목</span>" : "") +
+      "<span class='sub' style='flex:1 1 100%'>" +
+        (clean
+          ? "전부 맞습니다. 전산에서 전체 선택 후 「처리」를 눌러도 됩니다."
+          : "수량이 다른 품목이 있습니다. <b>이상</b> 탭에서 확인하세요. 전산에서는 맞는 품목만 체크해야 합니다.") +
+      "</span>";
+  }
+
   function updatePackBar(){
     var bar = $("packbar");
     if (!isPacking() || $("stage-work").hidden){ bar.hidden = true; return; }
@@ -4463,6 +4505,7 @@ window.__qrcode = (typeof qrcode !== "undefined") ? qrcode : (typeof module !== 
     $("s-scanned").textContent = t.scn;
     $("s-issue").textContent = t.over + t.unk;
     $("gauge").style.width = (t.exp ? Math.min(100, t.scn / t.exp * 100) : 0) + "%";
+    updateMatchBar();
 
     var list = [];
     if (view === "remaining") list = items.filter(function(i){ return i.scanned === 0; });
