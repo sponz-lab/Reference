@@ -255,15 +255,32 @@
     });
     if (!order.length) return null;
 
+    /* 이 화면에는 우리가 보내는 것과 우리가 받는 것이 섞여 나온다.
+       포장해서 내보낼 것은 '보내는 매장'이 우리 매장인 줄이다. */
+    var me = findStore();
+    var myName = me && me.name ? me.name : "";
+    var isOut = function (to) {
+      var f = groups[to].from;
+      return !!(myName && f && f.indexOf(myName) >= 0);
+    };
+    order.sort(function (a, b) {
+      var oa = isOut(a) ? 0 : 1, ob = isOut(b) ? 0 : 1;
+      if (oa !== ob) return oa - ob;
+      return groups[b].qty - groups[a].qty;
+    });
+
     var to = order[0];
     if (order.length > 1) {
       var lines = [];
       for (var i = 0; i < order.length && i < 30; i++) {
         var gg = groups[order[i]];
-        lines.push((i + 1) + ") " + order[i] + "  " + gg.lines.length + "품목 " + gg.qty + "개" +
+        lines.push((i + 1) + ") " + (isOut(order[i]) ? "[보냄] " : "[받음] ") + order[i] +
+                   "  " + gg.lines.length + "품목 " + gg.qty + "개" +
                    (gg.from ? "  (" + gg.from + " →)" : ""));
       }
-      var ans = prompt("받는 매장이 여럿입니다. 어느 매장 것을 가져올까요?\n\n" + lines.join("\n") +
+      var ans = prompt("받는 매장이 여럿입니다. 어느 매장 것을 가져올까요?\n\n" +
+                       "[보냄] = 우리가 포장해서 내보낼 것\n[받음] = 다른 매장이 우리에게 보내는 것\n\n" +
+                       lines.join("\n") +
                        "\n\n한 번에 한 매장씩 담아야 상자를 섞지 않습니다.", "1");
       if (ans === null) return { cancelled: true };
       var k = parseInt(ans, 10);
